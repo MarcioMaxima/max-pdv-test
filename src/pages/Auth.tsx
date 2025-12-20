@@ -142,7 +142,7 @@ export default function Auth() {
           if (emailError || !emailResult) {
             toast({
               title: "Usuário não encontrado",
-              description: "Não foi possível encontrar um usuário com esse nome.",
+              description: "Não encontramos esse nome. Tente entrar com seu EMAIL.",
               variant: "destructive",
             });
             setLoading(false);
@@ -255,13 +255,14 @@ export default function Auth() {
         <CardContent className="pb-6 sm:pb-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label htmlFor="name">Email ou Nome</Label>
               <Input
                 id="name"
-                placeholder={mode === 'forgot' ? "Digite seu nome cadastrado" : mode === 'login' ? "Seu nome" : "Seu nome completo"}
+                placeholder={mode === 'forgot' ? "Digite seu nome cadastrado" : mode === 'login' ? "Seu email ou nome" : "Seu nome completo"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={loading}
+                autoComplete={mode === 'login' ? 'username' : undefined}
               />
               {errors.name ? (
                 <p className="text-sm text-destructive">{errors.name}</p>

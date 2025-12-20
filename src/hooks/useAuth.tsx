@@ -29,7 +29,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string) => {
+  const ensureUserRecords = async (accessToken: string) => {
+    try {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ensure-user`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch {
+      // ignore (best-effort)
+    }
+  };
+
+  const fetchUserProfile = async (userId: string, email?: string) => {
     try {
       // Fetch profile
       const { data: profile } = await supabase
@@ -48,9 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profile && roleData) {
         setAuthUser({
           id: userId,
-          email: user?.email || '',
+          email: email || '',
           name: profile.name,
-          role: roleData.role as AppRole
+          role: roleData.role as AppRole,
         });
       }
     } catch (error) {
@@ -64,16 +78,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Defer profile fetch to avoid deadlock
+
         if (session?.user) {
           setTimeout(() => {
-            fetchUserProfile(session.user.id);
+            ensureUserRecords(session.access_token)
+              .finally(() => fetchUserProfile(session.user.id, session.user.email ?? undefined));
           }, 0);
         } else {
           setAuthUser(null);
         }
-        
+
         setLoading(false);
       }
     );
@@ -82,11 +96,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        ensureUserRecords(session.access_token)
+          .finally(() => fetchUserProfile(session.user.id, session.user.email ?? undefined));
       }
-      
+
       setLoading(false);
     });
 
