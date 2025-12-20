@@ -329,8 +329,14 @@ export default function Auth() {
               className="w-full gradient-primary text-primary-foreground"
               disabled={loading}
             >
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {mode === 'login' ? 'Entrar' : mode === 'signup' ? 'Criar Conta' : 'Enviar Link'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {mode === 'login' ? 'Entrando...' : mode === 'signup' ? 'Criando...' : 'Enviando...'}
+                </>
+              ) : (
+                mode === 'login' ? 'Entrar' : mode === 'signup' ? 'Criar Conta' : 'Enviar Link'
+              )}
             </Button>
           </form>
           
