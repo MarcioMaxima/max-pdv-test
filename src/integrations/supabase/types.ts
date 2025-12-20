@@ -292,6 +292,7 @@ export type Database = {
           email: string | null
           id: string
           name: string
+          tenant_id: string | null
           trial_expired: boolean | null
           trial_started_at: string | null
         }
@@ -300,6 +301,7 @@ export type Database = {
           email?: string | null
           id: string
           name: string
+          tenant_id?: string | null
           trial_expired?: boolean | null
           trial_started_at?: string | null
         }
@@ -308,10 +310,19 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string
+          tenant_id?: string | null
           trial_expired?: boolean | null
           trial_started_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_orders: {
         Row: {
@@ -487,6 +498,39 @@ export type Database = {
         }
         Relationships: []
       }
+      tenants: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: string
+          name: string
+          owner_id: string | null
+          plan: string | null
+          slug: string
+          trial_ends_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          name: string
+          owner_id?: string | null
+          plan?: string | null
+          slug: string
+          trial_ends_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          owner_id?: string | null
+          plan?: string | null
+          slug?: string
+          trial_ends_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -522,6 +566,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -529,6 +574,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_tenant_owner: { Args: { _tenant_id: string }; Returns: boolean }
       seller_can_view_customer: {
         Args: { _customer_id: string }
         Returns: boolean
@@ -542,6 +588,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      user_belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "manager" | "seller"
