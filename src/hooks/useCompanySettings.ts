@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CompanySettings } from "@/lib/types";
 import { toast } from "sonner";
 import { useTenant } from "./useTenant";
+import { useEffect } from "react";
 
 export function useCompanySettings() {
   const queryClient = useQueryClient();
@@ -45,6 +46,32 @@ export function useCompanySettings() {
     },
     enabled: !!tenantId,
   });
+
+  // Real-time subscription for cross-device sync
+  useEffect(() => {
+    if (!tenantId) return;
+
+    const channel = supabase
+      .channel('company-settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'company_settings',
+          filter: `tenant_id=eq.${tenantId}`
+        },
+        () => {
+          // Invalidate query to refetch data when changes occur
+          queryClient.invalidateQueries({ queryKey: ['company-settings', tenantId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tenantId, queryClient]);
 
   const updateSettings = useMutation({
     mutationFn: async (newSettings: Partial<CompanySettings>) => {
@@ -92,7 +119,7 @@ export function useCompanySettings() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['company-settings', tenantId] });
       toast.success("Configurações salvas!");
     },
     onError: (error) => {
