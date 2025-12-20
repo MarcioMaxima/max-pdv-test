@@ -262,12 +262,12 @@ export default function Auth() {
                 onChange={(e) => setName(e.target.value)}
                 disabled={loading}
               />
-              {errors.name && (
+              {errors.name ? (
                 <p className="text-sm text-destructive">{errors.name}</p>
-              )}
+              ) : null}
             </div>
             
-            {mode === 'signup' && (
+            {mode === 'signup' ? (
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -278,13 +278,13 @@ export default function Auth() {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
                 />
-                {errors.email && (
+                {errors.email ? (
                   <p className="text-sm text-destructive">{errors.email}</p>
-                )}
+                ) : null}
               </div>
-            )}
+            ) : null}
             
-            {mode !== 'forgot' && (
+            {mode !== 'forgot' ? (
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
                 <div className="relative">
@@ -304,13 +304,13 @@ export default function Auth() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {errors.password && (
+                {errors.password ? (
                   <p className="text-sm text-destructive">{errors.password}</p>
-                )}
+                ) : null}
               </div>
-            )}
+            ) : null}
 
-            {mode === 'login' && (
+            {mode === 'login' ? (
               <button
                 type="button"
                 onClick={() => {
@@ -322,7 +322,7 @@ export default function Auth() {
               >
                 Esqueci minha senha
               </button>
-            )}
+            ) : null}
             
             <Button 
               type="submit" 
