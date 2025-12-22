@@ -36,36 +36,98 @@ serve(async (req) => {
       });
     }
 
-    // Ensure profiles row exists
+    // Check existing profile
     const { data: existingProfile } = await supabaseAdmin
       .from("profiles")
-      .select("id")
+      .select("id, tenant_id")
       .eq("id", user.id)
       .maybeSingle();
 
+    let tenantId = existingProfile?.tenant_id;
+
+    // If profile exists but has no tenant, we need to create or find one
+    if (!tenantId) {
+      // Check if user is an owner of any tenant
+      const { data: ownedTenant } = await supabaseAdmin
+        .from("tenants")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+
+      if (ownedTenant) {
+        tenantId = ownedTenant.id;
+      } else {
+        // Create a new tenant for this user
+        const companyName = (user.user_metadata as any)?.company_name || "Minha Empresa";
+        const slug = companyName
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9-]/g, "") + "-" + user.id.substring(0, 8);
+
+        const { data: newTenant, error: tenantError } = await supabaseAdmin
+          .from("tenants")
+          .insert({
+            name: companyName,
+            slug: slug,
+            owner_id: user.id,
+          })
+          .select("id")
+          .single();
+
+        if (tenantError) {
+          console.error("Error creating tenant:", tenantError);
+        } else {
+          tenantId = newTenant.id;
+        }
+      }
+    }
+
+    // Ensure profiles row exists with tenant_id
     if (!existingProfile) {
       await supabaseAdmin.from("profiles").insert({
         id: user.id,
         name: (user.user_metadata as any)?.name ?? user.email ?? "Usuário",
         email: user.email,
+        tenant_id: tenantId,
       });
+    } else if (!existingProfile.tenant_id && tenantId) {
+      // Update existing profile with tenant_id
+      await supabaseAdmin
+        .from("profiles")
+        .update({ tenant_id: tenantId })
+        .eq("id", user.id);
     }
 
-    // Ensure user_roles row exists
+    // Ensure user_roles row exists with tenant_id
     const { data: existingRole } = await supabaseAdmin
       .from("user_roles")
-      .select("id")
+      .select("id, tenant_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (!existingRole) {
-      const { data: anyRole } = await supabaseAdmin.from("user_roles").select("id").limit(1);
-      const role = anyRole && anyRole.length > 0 ? "seller" : "admin";
+      // Check if this is the first user (owner) or an invited user
+      const { data: tenant } = await supabaseAdmin
+        .from("tenants")
+        .select("owner_id")
+        .eq("id", tenantId)
+        .maybeSingle();
+
+      // If user is the tenant owner, they should be admin
+      const isOwner = tenant?.owner_id === user.id;
+      const role = isOwner ? "admin" : "seller";
 
       await supabaseAdmin.from("user_roles").insert({
         user_id: user.id,
         role,
+        tenant_id: tenantId,
       });
+    } else if (!existingRole.tenant_id && tenantId) {
+      // Update existing role with tenant_id
+      await supabaseAdmin
+        .from("user_roles")
+        .update({ tenant_id: tenantId })
+        .eq("user_id", user.id);
     }
 
     // Keep profile email/name synced (best-effort)
@@ -73,11 +135,11 @@ serve(async (req) => {
       .from("profiles")
       .update({
         email: user.email,
-        name: (user.user_metadata as any)?.name ?? user.email ?? "Usuário",
+        name: (user.user_metadata as any)?.name ?? undefined,
       })
       .eq("id", user.id);
 
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, tenant_id: tenantId }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
