@@ -515,10 +515,10 @@ export default function Produtos() {
                     <TableHead className="font-semibold">Produto</TableHead>
                     <TableHead className="font-semibold">Descrição</TableHead>
                     <TableHead className="font-semibold">Categoria</TableHead>
-                    <TableHead className="font-semibold text-right">Preço</TableHead>
-                    <TableHead className="font-semibold text-center">Estoque</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold text-right">Ações</TableHead>
+                    <TableHead className="font-semibold text-right whitespace-nowrap w-[110px]">Preço</TableHead>
+                    <TableHead className="font-semibold text-center whitespace-nowrap w-[110px]">Estoque</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap">Status</TableHead>
+                    <TableHead className="font-semibold text-right whitespace-nowrap w-[120px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
