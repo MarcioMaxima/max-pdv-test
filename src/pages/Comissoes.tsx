@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
@@ -18,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { DollarSign, TrendingUp, ShoppingCart, Calendar, Eye, Percent, AlertCircle, Users, User } from "lucide-react";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
@@ -25,6 +28,7 @@ import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ServiceOrder } from "@/lib/types";
 
 interface SellerCommission {
   sellerId: string;
@@ -32,6 +36,7 @@ interface SellerCommission {
   totalSales: number;
   commissionAmount: number;
   ordersCount: number;
+  orders: ServiceOrder[];
 }
 
 export default function Comissoes() {
@@ -42,6 +47,10 @@ export default function Comissoes() {
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedSellerId, setSelectedSellerId] = useState<string>("all");
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [selectedSeller, setSelectedSeller] = useState<SellerCommission | null>(null);
+  const [sellerDialogOpen, setSellerDialogOpen] = useState(false);
 
   const isAdmin = authUser?.role === 'admin';
   const isManager = authUser?.role === 'manager';
@@ -87,9 +96,9 @@ export default function Comissoes() {
     return Array.from(sellerMap.entries()).map(([id, name]) => ({ id, name }));
   }, [orders, canViewAll]);
 
-  // Calculate commissions per seller (for admin/manager view)
+  // Calculate commissions per seller (for admin/manager view) - now includes orders
   const sellerCommissions = useMemo((): SellerCommission[] => {
-    if (!canViewAll || !orders) return [];
+    if (!orders) return [];
     
     const [year, month] = selectedMonth.split('-').map(Number);
     const monthStart = startOfMonth(new Date(year, month - 1));
@@ -103,26 +112,31 @@ export default function Comissoes() {
       const isInMonth = isWithinInterval(orderDate, { start: monthStart, end: monthEnd });
       const hasPaidAmount = (order.amountPaid || 0) > 0;
       
-      if (isInMonth && hasPaidAmount && order.sellerId) {
+      // For non-admin/manager, only include their own orders
+      const isAccessible = canViewAll || order.sellerId === authUser?.id;
+      
+      if (isInMonth && hasPaidAmount && order.sellerId && isAccessible) {
         const existing = commissionMap.get(order.sellerId) || {
           sellerId: order.sellerId,
           sellerName: order.sellerName || 'Desconhecido',
           totalSales: 0,
           commissionAmount: 0,
           ordersCount: 0,
+          orders: [],
         };
         
         const amountPaid = order.amountPaid || 0;
         existing.totalSales += amountPaid;
         existing.commissionAmount += amountPaid * commissionRate;
         existing.ordersCount += 1;
+        existing.orders.push(order);
         
         commissionMap.set(order.sellerId, existing);
       }
     });
     
     return Array.from(commissionMap.values()).sort((a, b) => b.commissionAmount - a.commissionAmount);
-  }, [orders, selectedMonth, settings, canViewAll]);
+  }, [orders, selectedMonth, settings, canViewAll, authUser]);
 
   // Calculate commission stats
   const stats = useMemo(() => {
@@ -141,6 +155,16 @@ export default function Comissoes() {
   }, [filteredOrders, settings]);
 
   const isLoading = isLoadingOrders || isLoadingSettings;
+
+  const handleViewOrder = (order: ServiceOrder) => {
+    setSelectedOrder(order);
+    setOrderDialogOpen(true);
+  };
+
+  const handleViewSellerOrders = (seller: SellerCommission) => {
+    setSelectedSeller(seller);
+    setSellerDialogOpen(true);
+  };
 
   // Check if commission is enabled
   if (!isLoading && !settings?.usesCommission) {
@@ -276,9 +300,14 @@ export default function Comissoes() {
         {/* Seller Summary Table (Admin/Manager only) */}
         {canViewAll && sellerCommissions.length > 0 && selectedSellerId === "all" && (
           <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Resumo por Vendedor</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                <h3 className="text-lg font-semibold">Comissões por Vendedor</h3>
+              </div>
+              <Badge variant="secondary" className="text-base px-3 py-1">
+                Total: R$ {sellerCommissions.reduce((sum, s) => sum + s.commissionAmount, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </Badge>
             </div>
             <div className="overflow-x-auto">
               <Table>
@@ -288,23 +317,45 @@ export default function Comissoes() {
                     <TableHead className="text-center">Vendas</TableHead>
                     <TableHead className="text-right">Total Vendido</TableHead>
                     <TableHead className="text-right">Comissão ({stats.commissionRate}%)</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sellerCommissions.map((seller) => (
-                    <TableRow key={seller.sellerId}>
+                    <TableRow 
+                      key={seller.sellerId} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleViewSellerOrders(seller)}
+                    >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
+                          <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                            <User className="h-4 w-4 text-green-500" />
+                          </div>
                           {seller.sellerName}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">{seller.ordersCount}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary">{seller.ordersCount}</Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         R$ {seller.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right font-semibold text-green-500">
                         R$ {seller.commissionAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewSellerOrders(seller);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver Vendas
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -320,7 +371,7 @@ export default function Comissoes() {
             <h3 className="text-lg font-semibold">Vendas com Comissão</h3>
             <Button variant="outline" size="sm" onClick={() => setDetailsDialogOpen(true)}>
               <Eye className="h-4 w-4 mr-2" />
-              Ver Detalhes
+              Ver Todas
             </Button>
           </div>
 
@@ -353,13 +404,18 @@ export default function Comissoes() {
                     {canViewAll && <TableHead>Vendedor</TableHead>}
                     <TableHead className="text-right">Valor Pago</TableHead>
                     <TableHead className="text-right">Comissão</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredOrders.slice(0, 10).map((order) => {
                     const commission = (order.amountPaid || 0) * (stats.commissionRate / 100);
                     return (
-                      <TableRow key={order.id}>
+                      <TableRow 
+                        key={order.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleViewOrder(order)}
+                      >
                         <TableCell className="font-mono text-sm">{order.id}</TableCell>
                         <TableCell>
                           {format(parseISO(order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
@@ -372,6 +428,18 @@ export default function Comissoes() {
                         <TableCell className="text-right text-green-500 font-medium">
                           R$ {commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewOrder(order);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -379,7 +447,7 @@ export default function Comissoes() {
               </Table>
               {filteredOrders.length > 10 && (
                 <p className="text-sm text-muted-foreground text-center mt-4">
-                  Mostrando 10 de {filteredOrders.length} vendas. Clique em "Ver Detalhes" para ver todas.
+                  Mostrando 10 de {filteredOrders.length} vendas. Clique em "Ver Todas" para ver todas.
                 </p>
               )}
             </div>
@@ -387,7 +455,176 @@ export default function Comissoes() {
         </Card>
       </div>
 
-      {/* Details Dialog */}
+      {/* Order Details Dialog */}
+      <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+              Detalhes da Venda #{selectedOrder?.id}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-4">
+              {/* Order Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Cliente</Label>
+                  <p className="font-medium">{selectedOrder.customerName}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Data</Label>
+                  <p className="font-medium">
+                    {format(parseISO(selectedOrder.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Vendedor</Label>
+                  <p className="font-medium">{selectedOrder.sellerName || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Status</Label>
+                  <Badge variant={selectedOrder.paymentStatus === 'paid' ? 'default' : 'secondary'}>
+                    {selectedOrder.paymentStatus === 'paid' ? 'Pago' : 
+                     selectedOrder.paymentStatus === 'partial' ? 'Parcial' : 'Pendente'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <h4 className="font-semibold mb-3">Itens da Venda</h4>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {selectedOrder.items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Qtd: {item.quantity} x R$ {item.price.toFixed(2)}
+                          {item.variationName && ` • ${item.variationName}`}
+                        </p>
+                      </div>
+                      <p className="font-medium">R$ {item.total.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Totals */}
+              <div className="border-t pt-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total da Venda</span>
+                  <span className="font-medium">R$ {selectedOrder.total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor Pago</span>
+                  <span className="font-medium">R$ {(selectedOrder.amountPaid || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Taxa de Comissão</span>
+                  <span className="font-medium">{stats.commissionRate}%</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold text-green-500 pt-2 border-t">
+                  <span>Comissão Gerada</span>
+                  <span>R$ {((selectedOrder.amountPaid || 0) * (stats.commissionRate / 100)).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOrderDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Seller Orders Dialog */}
+      <Dialog open={sellerDialogOpen} onOpenChange={setSellerDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-green-500" />
+              Vendas de {selectedSeller?.sellerName}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedSeller && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Total em Vendas</Label>
+                  <p className="font-bold text-lg">
+                    R$ {selectedSeller.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Número de Vendas</Label>
+                  <p className="font-bold text-lg">{selectedSeller.ordersCount}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Comissão a Pagar ({stats.commissionRate}%)</Label>
+                  <p className="font-bold text-lg text-green-500">
+                    R$ {selectedSeller.commissionAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Orders List */}
+              <div>
+                <h4 className="font-semibold mb-3">Vendas do Período</h4>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {selectedSeller.orders.map((order) => {
+                    const commission = (order.amountPaid || 0) * (stats.commissionRate / 100);
+                    return (
+                      <div 
+                        key={order.id} 
+                        className="flex justify-between items-center p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => {
+                          setSellerDialogOpen(false);
+                          handleViewOrder(order);
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <ShoppingCart className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Venda #{order.id}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(parseISO(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              {' • '}{order.customerName}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">
+                            Valor: R$ {(order.amountPaid || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="font-bold text-green-500">
+                            Comissão: R$ {commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSellerDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* All Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -427,7 +664,14 @@ export default function Comissoes() {
                 {filteredOrders.map((order) => {
                   const commission = (order.amountPaid || 0) * (stats.commissionRate / 100);
                   return (
-                    <TableRow key={order.id}>
+                    <TableRow 
+                      key={order.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setDetailsDialogOpen(false);
+                        handleViewOrder(order);
+                      }}
+                    >
                       <TableCell className="font-mono text-sm">{order.id}</TableCell>
                       <TableCell>
                         {format(parseISO(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
@@ -446,6 +690,12 @@ export default function Comissoes() {
               </TableBody>
             </Table>
           </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </MainLayout>
