@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, User, Printer, Bell, Edit, Palette, Upload, ImageIcon, Package, Trash2, Loader2, Download, HelpCircle, UserPlus, Volume2, VolumeX, KeyRound, UserX, UserCheck } from "lucide-react";
+import { Building2, User, Printer, Bell, Edit, Palette, Upload, ImageIcon, Package, Trash2, Loader2, Download, HelpCircle, UserPlus, Volume2, VolumeX, KeyRound, UserX, UserCheck, Vibrate } from "lucide-react";
 import { useSoundSettings, SoundType } from "@/hooks/useSoundSettings";
 import { playClickSound } from "@/hooks/useClickSound";
 import { Slider } from "@/components/ui/slider";
@@ -433,7 +433,7 @@ export default function Configuracoes() {
 
   // Sound settings card component
   const SoundSettingsCard = () => {
-    const { settings: soundSettings, setEnabled, setVolume, setSoundType, setNotificationSoundEnabled } = useSoundSettings();
+    const { settings: soundSettings, setEnabled, setVolume, setSoundType, setNotificationSoundEnabled, setVibrationEnabled } = useSoundSettings();
     
     const soundTypes: { value: SoundType; label: string; description: string }[] = [
       { value: "touch", label: "Touch", description: "Estilo banco/app moderno" },
@@ -490,6 +490,21 @@ export default function Configuracoes() {
             <Switch
               checked={soundSettings.notificationSoundEnabled}
               onCheckedChange={setNotificationSoundEnabled}
+            />
+          </div>
+
+          {/* Vibration Toggle */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+            <div className="flex items-center gap-3">
+              <Vibrate className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <Label className="text-sm font-medium">Vibração</Label>
+                <p className="text-xs text-muted-foreground">Feedback háptico ao tocar (móvel)</p>
+              </div>
+            </div>
+            <Switch
+              checked={soundSettings.vibrationEnabled}
+              onCheckedChange={setVibrationEnabled}
             />
           </div>
 

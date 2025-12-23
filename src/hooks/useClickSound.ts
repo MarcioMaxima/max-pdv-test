@@ -86,9 +86,27 @@ const playToneImmediate = (ctx: AudioContext, volume: number, soundType: SoundTy
   oscillator.stop(now + config.duration);
 };
 
+// Trigger haptic feedback (vibration) on supported devices
+const triggerHapticFeedback = (settings: ReturnType<typeof getSoundSettings>) => {
+  if (!settings.vibrationEnabled) return;
+  
+  // Check if Vibration API is supported
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      // Short vibration pattern for click feedback (10-15ms is ideal for haptic)
+      navigator.vibrate(12);
+    } catch {
+      // Ignore vibration errors
+    }
+  }
+};
+
 const playClickSoundImpl = () => {
   try {
     const settings = getSoundSettings();
+    
+    // Trigger haptic feedback immediately
+    triggerHapticFeedback(settings);
     
     // Check if sound is enabled
     if (!settings.enabled) {
