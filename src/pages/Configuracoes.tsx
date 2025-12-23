@@ -618,7 +618,7 @@ export default function Configuracoes() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <ChangePasswordDialog />
-                {(authUser?.role === 'admin' || authUser?.role === 'manager') && (
+                {authUser?.role === 'admin' && (
                   <Button onClick={() => setIsCreateUserDialogOpen(true)}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Novo Usuário
@@ -649,13 +649,14 @@ export default function Configuracoes() {
                       </div>
                       <div>
                         <p className="font-medium">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${getRoleBadgeClass(user.role)}`}>
                           {getRoleLabel(user.role)}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {(authUser?.role === 'admin' || authUser?.role === 'manager') && (
+                      {authUser?.role === 'admin' && user.role !== 'admin' && (
                         <Button variant="outline" size="sm" onClick={() => handleOpenUserDialog(user)}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -707,7 +708,7 @@ export default function Configuracoes() {
                   <Label htmlFor="new-user-role">Função</Label>
                   <Select
                     value={newUserData.role}
-                    onValueChange={(value: "admin" | "manager" | "seller") => 
+                    onValueChange={(value: "manager" | "seller") => 
                       setNewUserData({ ...newUserData, role: value })
                     }
                   >
@@ -715,9 +716,6 @@ export default function Configuracoes() {
                       <SelectValue placeholder="Selecione a função" />
                     </SelectTrigger>
                     <SelectContent>
-                      {authUser?.role === 'admin' && (
-                        <SelectItem value="admin">Administrador</SelectItem>
-                      )}
                       <SelectItem value="manager">Gerente</SelectItem>
                       <SelectItem value="seller">Vendedor</SelectItem>
                     </SelectContent>

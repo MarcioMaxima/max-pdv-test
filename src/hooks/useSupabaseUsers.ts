@@ -27,7 +27,7 @@ export function useSupabaseUsers() {
       // Fetch profiles with their roles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, name');
+        .select('id, name, email');
 
       if (profilesError) throw profilesError;
 
@@ -43,6 +43,7 @@ export function useSupabaseUsers() {
         return {
           id: profile.id,
           name: profile.name,
+          email: profile.email || '',
           role: (userRole?.role as AppRole) || 'seller',
           active: true,
         };
