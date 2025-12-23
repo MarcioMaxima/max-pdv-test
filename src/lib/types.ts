@@ -32,6 +32,9 @@ export interface CompanySettings {
   notifyOrderStatus?: boolean;
   // Login customization
   loginHeaderColor?: string;
+  // Commission settings
+  usesCommission?: boolean;
+  commissionPercentage?: number;
 }
 
 export interface StockMovement {

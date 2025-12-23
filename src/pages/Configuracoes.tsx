@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, User, Printer, Bell, Edit, Palette, Upload, ImageIcon, Package, Trash2, Loader2, Download, HelpCircle, UserPlus, KeyRound, UserX, UserCheck } from "lucide-react";
+import { Building2, User, Printer, Bell, Edit, Palette, Upload, ImageIcon, Package, Trash2, Loader2, Download, HelpCircle, UserPlus, KeyRound, UserX, UserCheck, Percent } from "lucide-react";
 import { SoundSettingsCard } from "@/components/SoundSettingsCard";
 import { Slider } from "@/components/ui/slider";
 import { useStore } from "@/lib/store";
@@ -92,6 +92,10 @@ export default function Configuracoes() {
   const [notifyNewSales, setNotifyNewSales] = useState(true);
   const [notifyPendingPayments, setNotifyPendingPayments] = useState(true);
   const [notifyOrderStatus, setNotifyOrderStatus] = useState(true);
+
+  // Commission settings state
+  const [usesCommission, setUsesCommission] = useState(false);
+  const [commissionPercentage, setCommissionPercentage] = useState(0);
 
   // User form state
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -173,6 +177,9 @@ export default function Configuracoes() {
       setNotifyNewSales(cloudSettings.notifyNewSales ?? true);
       setNotifyPendingPayments(cloudSettings.notifyPendingPayments ?? true);
       setNotifyOrderStatus(cloudSettings.notifyOrderStatus ?? true);
+      // Commission settings
+      setUsesCommission(cloudSettings.usesCommission ?? false);
+      setCommissionPercentage(cloudSettings.commissionPercentage ?? 0);
     }
   }, [cloudSettings]);
 
@@ -458,6 +465,10 @@ export default function Configuracoes() {
           <TabsTrigger value="personalizacao" className="gap-2">
             <Palette className="h-4 w-4" />
             Personalização
+          </TabsTrigger>
+          <TabsTrigger value="comissoes" className="gap-2">
+            <Percent className="h-4 w-4" />
+            Comissões
           </TabsTrigger>
         </TabsList>
 
@@ -1241,6 +1252,71 @@ export default function Configuracoes() {
                 </div>
               </div>
 
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="comissoes">
+          <Card className="p-6 space-y-6">
+            <h3 className="text-lg font-semibold">Configurações de Comissão</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="font-medium">Pagar Comissão aos Vendedores</p>
+                  <p className="text-sm text-muted-foreground">
+                    Ativar cálculo de comissão sobre vendas realizadas pelos vendedores
+                  </p>
+                </div>
+                <Switch 
+                  checked={usesCommission}
+                  onCheckedChange={(checked) => {
+                    setUsesCommission(checked);
+                    updateCloudSettings({ usesCommission: checked });
+                  }}
+                />
+              </div>
+              
+              {usesCommission && (
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div>
+                    <p className="font-medium">Percentual de Comissão</p>
+                    <p className="text-sm text-muted-foreground">
+                      Porcentagem sobre o valor total de cada venda
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Input 
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        className="w-24 text-center pr-8"
+                        value={commissionPercentage}
+                        onChange={(e) => setCommissionPercentage(parseFloat(e.target.value) || 0)}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => updateCloudSettings({ commissionPercentage })}
+                      disabled={isUpdatingSettings}
+                    >
+                      {isUpdatingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {usesCommission && (
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                  <p className="text-sm text-primary">
+                    💡 Com a comissão ativada, os vendedores poderão visualizar o valor a receber 
+                    na tela de "Minhas Comissões" no menu lateral.
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
         </TabsContent>
