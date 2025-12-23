@@ -54,6 +54,9 @@ export default function Caixa() {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   
+  // Commission dialog state
+  const [comissoesDialogOpen, setComissoesDialogOpen] = useState(false);
+  
   const { settings: companySettings } = useSyncedCompanySettings();
   // Apply fixed expenses on mount
   useEffect(() => {
@@ -100,13 +103,15 @@ export default function Caixa() {
   // Calculate commission rate
   const commissionRate = companySettings?.usesCommission ? (companySettings?.commissionPercentage || 0) / 100 : 0;
 
-  // Calculate total commission from paid orders
-  const totalCommission = orders.reduce((acc, order) => {
-    if (commissionRate > 0 && (order.amountPaid || 0) > 0) {
-      return acc + (order.amountPaid || 0) * commissionRate;
-    }
-    return acc;
-  }, 0);
+  // Calculate total commission from paid orders and get orders with commissions
+  const ordersWithCommission = orders
+    .filter(order => commissionRate > 0 && (order.amountPaid || 0) > 0)
+    .map(order => ({
+      ...order,
+      commissionValue: (order.amountPaid || 0) * commissionRate
+    }));
+
+  const totalCommission = ordersWithCommission.reduce((acc, order) => acc + order.commissionValue, 0);
 
   // Derive transactions from orders and expenses
   const transactions = [
@@ -414,14 +419,17 @@ export default function Caixa() {
 
                   {/* Commission Entry */}
                   {totalCommission > 0 && (
-                    <div className="flex justify-between items-center p-3 hover:bg-orange-500/10 rounded-lg border-2 border-orange-500/30 hover:border-orange-500/50 transition-all duration-200 shadow-sm hover:shadow-md bg-orange-500/5">
+                    <div 
+                      className="flex justify-between items-center p-3 hover:bg-orange-500/10 rounded-lg border-2 border-orange-500/30 hover:border-orange-500/50 transition-all duration-200 shadow-sm hover:shadow-md bg-orange-500/5 cursor-pointer"
+                      onClick={() => setComissoesDialogOpen(true)}
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-500/10 text-orange-500">
                           <DollarSign className="w-5 h-5" />
                         </div>
                         <div>
                           <p className="font-medium">Débito de Comissões ({companySettings?.commissionPercentage || 0}%)</p>
-                          <p className="text-xs text-muted-foreground">Sobre vendas pagas</p>
+                          <p className="text-xs text-muted-foreground">Sobre vendas pagas • Clique para ver detalhes</p>
                         </div>
                       </div>
                       <span className="font-bold text-orange-500">
@@ -1139,6 +1147,71 @@ export default function Caixa() {
         open={expenseDialogOpen}
         onOpenChange={setExpenseDialogOpen}
       />
+
+      {/* Commission Details Dialog */}
+      <Dialog open={comissoesDialogOpen} onOpenChange={setComissoesDialogOpen}>
+        <DialogContent className="max-w-lg sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-orange-500" />
+              Débito de Comissões ({companySettings?.commissionPercentage || 0}%)
+            </DialogTitle>
+            <DialogDescription>
+              Comissões calculadas sobre o valor pago de cada venda
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {ordersWithCommission.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Nenhuma comissão registrada</p>
+              </div>
+            ) : (
+              ordersWithCommission.map((order) => (
+                <div 
+                  key={order.id} 
+                  className="flex justify-between items-center p-3 rounded-lg border bg-card hover:bg-orange-500/5 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setComissoesDialogOpen(false);
+                    setSelectedOrder(order);
+                    setOrderDialogOpen(true);
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">Venda #{order.id}</p>
+                    <p className="text-sm text-muted-foreground">{order.customerName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {order.sellerName && <span>Vendedor: {order.sellerName} • </span>}
+                      Valor pago: R$ {(order.amountPaid || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end shrink-0 ml-2">
+                    <span className="font-bold text-orange-500">R$ {order.commissionValue.toFixed(2)}</span>
+                    <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-500">
+                      Comissão
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="border-t pt-3 mt-2 space-y-2">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Total de vendas com comissão:</span>
+              <span className="font-medium">{ordersWithCommission.length}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Total vendido (pago):</span>
+              <span className="font-medium text-success">
+                R$ {ordersWithCommission.reduce((acc, o) => acc + (o.amountPaid || 0), 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-medium text-muted-foreground">Total de Comissões:</span>
+              <span className="text-xl font-bold text-orange-500">R$ {totalCommission.toFixed(2)}</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
