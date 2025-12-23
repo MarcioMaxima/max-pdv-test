@@ -97,6 +97,17 @@ export default function Caixa() {
     return d;
   };
 
+  // Calculate commission rate
+  const commissionRate = companySettings?.usesCommission ? (companySettings?.commissionPercentage || 0) / 100 : 0;
+
+  // Calculate total commission from paid orders
+  const totalCommission = orders.reduce((acc, order) => {
+    if (commissionRate > 0 && (order.amountPaid || 0) > 0) {
+      return acc + (order.amountPaid || 0) * commissionRate;
+    }
+    return acc;
+  }, 0);
+
   // Derive transactions from orders and expenses
   const transactions = [
      ...orders.flatMap(order => {
@@ -153,9 +164,9 @@ export default function Caixa() {
      }))
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
-  // Calculate Balance
+  // Calculate Balance (including commission as debit)
   const totalIn = transactions.filter(t => t.type === 'in').reduce((acc, curr) => acc + curr.value, 0);
-  const totalOut = transactions.filter(t => t.type === 'out').reduce((acc, curr) => acc + curr.value, 0);
+  const totalOut = transactions.filter(t => t.type === 'out').reduce((acc, curr) => acc + curr.value, 0) + totalCommission;
   const initialFloat = 150.00;
   const currentBalance = initialFloat + totalIn - totalOut;
 
@@ -340,6 +351,11 @@ export default function Caixa() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Saídas</p>
                 <p className="text-xl font-bold text-destructive">- R$ {totalOut.toFixed(2)}</p>
+                {totalCommission > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    (inclui comissões: R$ {totalCommission.toFixed(2)})
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -892,7 +908,19 @@ export default function Caixa() {
             }
           />
           <div className="flex-1 overflow-y-auto space-y-2">
-            {transactions.filter(t => t.type === 'out').length === 0 ? (
+            {/* Commission entry if enabled */}
+            {totalCommission > 0 && (
+              <div className="flex justify-between items-center p-3 rounded-lg border bg-orange-500/10 border-orange-500/30">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">Débito de Comissões</p>
+                  <p className="text-sm text-muted-foreground">Comissões sobre vendas ({companySettings?.commissionPercentage || 0}%)</p>
+                </div>
+                <div className="flex flex-col items-end shrink-0 ml-2">
+                  <span className="font-bold text-orange-500">- R$ {totalCommission.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+            {transactions.filter(t => t.type === 'out').length === 0 && totalCommission === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>Nenhuma saída registrada</p>
               </div>
@@ -924,7 +952,13 @@ export default function Caixa() {
               ))
             )}
           </div>
-          <div className="border-t pt-3 mt-2">
+          <div className="border-t pt-3 mt-2 space-y-2">
+            {totalCommission > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Débito Comissões:</span>
+                <span className="font-medium text-orange-500">R$ {totalCommission.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="font-medium text-muted-foreground">Total de Saídas:</span>
               <span className="text-xl font-bold text-destructive">R$ {totalOut.toFixed(2)}</span>
@@ -958,6 +992,15 @@ export default function Caixa() {
                 </div>
                 <span className="font-bold text-destructive">- R$ {totalOut.toFixed(2)}</span>
               </div>
+              {totalCommission > 0 && (
+                <div className="flex justify-between items-center p-3 rounded-lg border bg-orange-500/10 border-orange-500/30 ml-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-orange-500" />
+                    <span className="font-medium text-sm">Débito Comissões ({companySettings?.commissionPercentage || 0}%)</span>
+                  </div>
+                  <span className="font-bold text-orange-500">R$ {totalCommission.toFixed(2)}</span>
+                </div>
+              )}
             </div>
             <div className="border-t pt-3">
               <div className="flex justify-between items-center p-3 rounded-lg bg-primary/5 border-2 border-primary/20">
@@ -968,7 +1011,7 @@ export default function Caixa() {
               </div>
             </div>
             <div className="text-sm text-muted-foreground text-center">
-              Entradas: {transactions.filter(t => t.type === 'in').length} | Saídas: {transactions.filter(t => t.type === 'out').length}
+              Entradas: {transactions.filter(t => t.type === 'in').length} | Saídas: {transactions.filter(t => t.type === 'out').length}{totalCommission > 0 ? ' | Comissões incluídas' : ''}
             </div>
           </div>
         </DialogContent>
