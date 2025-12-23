@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/lib/store";
 import { ServiceOrder } from "@/lib/types";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { playClickSound } from "@/hooks/useClickSound";
 import { DollarSign, ShoppingCart, ClipboardList, CheckCircle2, Clock, Printer, Search, Banknote, ListFilter, ArrowRight, Bell, TrendingUp, CreditCard, BarChart3, MessageCircle } from "lucide-react";
@@ -30,8 +30,7 @@ import { OnboardingDialog, useOnboarding } from "@/components/OnboardingDialog";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { companySettings } = useStore();
-  const { settings: cloudSettings } = useCompanySettings();
+  const { settings: companySettings } = useSyncedCompanySettings();
   const { orders, updateOrder, updateOrderStatus } = useSupabaseOrders();
   const { authUser } = useAuth();
   const { notifyOrderStatusChange } = useAutoNotifications();
@@ -151,7 +150,7 @@ export default function Dashboard() {
       </div>
     `);
 
-    const dailyPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const dailyPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`
       <div class="header">
         <div style="font-weight: bold; font-size: 16px;">${companySettings.name}</div>
@@ -186,7 +185,7 @@ export default function Dashboard() {
     printWindow.document.write('<html><head><title>Relatório de Recebimentos</title>');
     printWindow.document.write('<style>body { font-family: monospace; padding: 20px; } .print-actions { display: flex; gap: 10px; justify-content: center; margin: 0 0 16px; padding: 12px; background: #f0f0f0; border-radius: 10px; position: sticky; top: 0; } .print-actions button { border: none; padding: 12px 18px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); } .print-actions .btn-print { background: #22c55e; } .print-actions .btn-close { background: #ef4444; } table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; } .text-right { text-align: right; } .total { margin-top: 20px; text-align: right; font-weight: bold; font-size: 16px; border-top: 2px solid #000; padding-top: 10px; } .header { text-align: center; margin-bottom: 20px; border-bottom: 1px dashed #000; padding-bottom: 10px; } @media print { .print-actions { display: none !important; } }</style></head><body>');
     printWindow.document.write(`<div class="print-actions"><button class="btn-print" onclick="window.print()">🖨️ Imprimir</button><button class="btn-close" onclick="window.close()">✕ Fechar</button></div>`);
-    const receivedPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const receivedPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`<div class="header"><div style="font-weight: bold; font-size: 16px;">${companySettings.name}</div><div>${companySettings.address}</div><div>${receivedPhones}</div><div style="margin-top: 10px;">RELATÓRIO DE PEDIDOS DO DIA (RECEBIDO HOJE)</div><div>${new Date().toLocaleDateString()}</div></div>`);
 
     printWindow.document.write('<table><thead><tr><th>Pedido</th><th>Cliente</th><th>Status</th><th class="text-right">Total</th><th class="text-right">Pago</th></tr></thead><tbody>');
@@ -216,7 +215,7 @@ export default function Dashboard() {
     printWindow.document.write('<html><head><title>Relatório de Contas a Receber</title>');
     printWindow.document.write('<style>body { font-family: monospace; padding: 20px; } .print-actions { display: flex; gap: 10px; justify-content: center; margin: 0 0 16px; padding: 12px; background: #f0f0f0; border-radius: 10px; position: sticky; top: 0; } .print-actions button { border: none; padding: 12px 18px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); } .print-actions .btn-print { background: #22c55e; } .print-actions .btn-close { background: #ef4444; } table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; } .text-right { text-align: right; } .total { margin-top: 20px; text-align: right; font-weight: bold; font-size: 16px; border-top: 2px solid #000; padding-top: 10px; } .header { text-align: center; margin-bottom: 20px; border-bottom: 1px dashed #000; padding-bottom: 10px; } @media print { .print-actions { display: none !important; } }</style></head><body>');
     printWindow.document.write(`<div class="print-actions"><button class="btn-print" onclick="window.print()">🖨️ Imprimir</button><button class="btn-close" onclick="window.close()">✕ Fechar</button></div>`);
-    const receivablesPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const receivablesPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`<div class="header"><div style="font-weight: bold; font-size: 16px;">${companySettings.name}</div><div>${companySettings.address}</div><div>${receivablesPhones}</div><div style="margin-top: 10px;">RELATÓRIO DE CONTAS A RECEBER</div><div>${new Date().toLocaleDateString()}</div></div>`);
     printWindow.document.write('<table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th class="text-right">Total</th><th class="text-right">Pago</th><th class="text-right">Restante</th></tr></thead><tbody>');
 
@@ -291,7 +290,7 @@ export default function Dashboard() {
     `);
 
     // Header
-    const ordersPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const ordersPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`
       <div class="header">
         <h1>${companySettings.name}</h1>
@@ -395,8 +394,8 @@ export default function Dashboard() {
       printWindow.document.write(`<html><head><title>${title} #${order.id}</title><style>body { font-family: 'Courier New', monospace; padding: 20px; font-size: ${type === 'receipt' ? '12px' : '14px'}; max-width: ${type === 'receipt' ? '300px' : '100%'}; margin: 0 auto; } .print-actions { display: flex; gap: 10px; justify-content: center; margin: 0 0 16px; padding: 12px; background: #f0f0f0; border-radius: 10px; position: sticky; top: 0; } .print-actions button { border: none; padding: 12px 18px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); } .print-actions .btn-print { background: #22c55e; } .print-actions .btn-close { background: #ef4444; } .text-center { text-align: center; } .text-right { text-align: right; } .font-bold { font-weight: bold; } .border-b { border-bottom: 1px dashed #000; } table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f8f9fa; } .header-section { margin-bottom: 20px; text-align: center; } .info-section { margin-bottom: 20px; } .total-section { margin-top: 20px; text-align: right; font-size: 1.2em; font-weight: bold; } .box { border: 2px solid #000; padding: 15px; margin-top: 8px; font-size: 16px; font-weight: bold; background: #f8f9fa; } .finishing-box { border: 2px solid #333; padding: 8px 12px; margin-top: 8px; font-size: 15px; font-weight: bold; background: #eee; display: inline-block; } @media print { .print-actions { display: none !important; } }</style></head><body>`);
       printWindow.document.write(`<div class="print-actions"><button class="btn-print" onclick="window.print()">🖨️ Imprimir</button><button class="btn-close" onclick="window.close()">✕ Fechar</button></div>`);
 
-      const orderPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
-      printWindow.document.write(`<div class="header-section"><div class="font-bold" style="font-size: 1.2em;">${companySettings.name}</div><div>${companySettings.address}</div><div>${orderPhones}</div><div style="margin-top: 10px; font-weight: bold; font-size: 1.5em;">${title}</div></div>`);
+      const orderPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
+      printWindow.document.write(`<div class="header-section">${companySettings.logoUrl ? `<img src="${companySettings.logoUrl}" alt="Logo" style="max-height: 60px; max-width: 150px; margin-bottom: 10px;" />` : `<div class="font-bold" style="font-size: 1.2em;">${companySettings.name}</div>`}<div>${companySettings.address}</div><div>${orderPhones}</div><div style="margin-top: 10px; font-weight: bold; font-size: 1.5em;">${title}</div></div>`);
       printWindow.document.write(`<div class="info-section border-b" style="padding-bottom: 8px;"><div style="display: flex; justify-content: space-between;"><div><div><strong>Data:</strong> ${new Date(order.createdAt).toLocaleString()}</div><div><strong>Pedido:</strong> #${order.id}</div></div><div class="text-right"><div><strong>Cliente:</strong> ${order.customerName}</div>${order.sellerName ? `<div><strong>Vendedor:</strong> ${order.sellerName}</div>` : ''}</div></div></div>`);
 
       if (type === 'receipt') {

@@ -39,7 +39,7 @@ import { useStore } from "@/lib/store";
 import { ServiceOrder } from "@/lib/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { toast } from "sonner";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -48,8 +48,7 @@ import { cn } from "@/lib/utils";
 export default function ContasReceber() {
   const navigate = useNavigate();
   const { orders, updateOrder } = useSupabaseOrders();
-  const { settings: cloudSettings } = useCompanySettings();
-  const { companySettings } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
   const { authUser } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
@@ -212,7 +211,7 @@ export default function ContasReceber() {
       </div>
     `);
 
-    const receberPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const receberPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`
       <div class="header">
         <div style="font-weight: bold; font-size: 16px;">${companySettings.name}</div>
@@ -305,7 +304,7 @@ export default function ContasReceber() {
     `);
 
     // Header
-    const receberDetailPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const receberDetailPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`
       <div class="header">
         <h1>${companySettings.name}</h1>

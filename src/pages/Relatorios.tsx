@@ -37,11 +37,13 @@ import {
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { format } from "date-fns";
 
 export default function Relatorios() {
   const { orders } = useSupabaseOrders();
-  const { customers, products, users, companySettings, expenses, fixedExpenses } = useStore();
+  const { customers, products, users, expenses, fixedExpenses } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
   const { authUser } = useAuth();
   const [activeTab, setActiveTab] = useState("vendas");
   const [dateFrom, setDateFrom] = useState("");
