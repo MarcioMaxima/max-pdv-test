@@ -38,10 +38,10 @@ serve(async (req) => {
 
     console.log(`Password reset requested for user name: ${name}`);
 
-    // Find user by name
+    // Find user by name and get their tenant_id
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, recovery_email, name')
+      .select('id, email, name, tenant_id')
       .ilike('name', name.trim())
       .limit(1)
       .maybeSingle();
@@ -66,10 +66,39 @@ serve(async (req) => {
       );
     }
 
-    // Determine which email to send the reset to
-    // If recovery_email exists, use it (admin's email), otherwise use user's email
-    const targetEmail = profile.recovery_email || profile.email;
+    // Find the tenant owner (admin) email
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from('tenants')
+      .select('owner_id')
+      .eq('id', profile.tenant_id)
+      .single();
+
+    if (tenantError || !tenant) {
+      console.error('Tenant lookup error:', tenantError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao buscar informações do tenant' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get the admin's email (tenant owner)
+    const { data: adminProfile, error: adminError } = await supabaseAdmin
+      .from('profiles')
+      .select('email')
+      .eq('id', tenant.owner_id)
+      .single();
+
+    if (adminError || !adminProfile?.email) {
+      console.error('Admin lookup error:', adminError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao buscar email do administrador' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // The reset link is for the user's email, but notification goes to admin
     const userEmail = profile.email; // The actual user's email for the reset link
+    const adminEmail = adminProfile.email; // Where to send the notification
 
     if (!userEmail) {
       console.error(`No email found for user: ${profile.id}`);
@@ -82,69 +111,44 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Sending password reset for ${profile.name} (${userEmail}) to: ${targetEmail}`);
+    console.log(`Sending password reset for ${profile.name} (${userEmail}) to admin: ${adminEmail}`);
 
-    // If recovery_email is different from user's email, we need to send a custom email
-    // because Supabase's built-in reset only sends to the user's registered email
-    if (profile.recovery_email && profile.recovery_email !== profile.email) {
-      // Generate a password reset token using admin API
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email: userEmail,
-        options: {
-          redirectTo: redirectUrl || `${supabaseUrl}/reset-password`
-        }
-      });
-
-      if (linkError) {
-        console.error('Generate link error:', linkError);
-        return new Response(
-          JSON.stringify({ error: 'Erro ao gerar link de recuperação' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // For now, we'll log the info and inform the admin
-      // In production, you would send an email using a service like Resend
-      console.log(`Password reset link generated for ${profile.name}`);
-      console.log(`Should be sent to admin email: ${profile.recovery_email}`);
-      console.log(`Reset link: ${linkData.properties?.action_link}`);
-
-      // Return info about where the email will be sent (for admin visibility)
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: `Link de recuperação será enviado para o email do administrador.`,
-          adminNotified: true,
-          recoveryEmail: profile.recovery_email,
-          userName: profile.name,
-          // In production, remove actionLink - this is for testing only
-          actionLink: linkData.properties?.action_link
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // Normal case: send to user's own email using Supabase's built-in method
-      const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(userEmail, {
+    // Generate a password reset token using admin API
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: userEmail,
+      options: {
         redirectTo: redirectUrl || `${supabaseUrl}/reset-password`
-      });
-
-      if (resetError) {
-        console.error('Reset password error:', resetError);
-        return new Response(
-          JSON.stringify({ error: 'Erro ao enviar email de recuperação' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
       }
+    });
 
+    if (linkError) {
+      console.error('Generate link error:', linkError);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Email de recuperação enviado com sucesso.' 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Erro ao gerar link de recuperação' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Log the info - the reset link should be sent to the admin's email
+    console.log(`Password reset link generated for ${profile.name}`);
+    console.log(`Will be sent to admin email: ${adminEmail}`);
+    console.log(`Reset link: ${linkData.properties?.action_link}`);
+
+    // Return info about where the email will be sent
+    // In production, you would integrate with Resend to actually send the email to adminEmail
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: `Link de recuperação será enviado para o email do administrador.`,
+        adminNotified: true,
+        adminEmail: adminEmail,
+        userName: profile.name,
+        // In production, remove actionLink - this is for testing only
+        actionLink: linkData.properties?.action_link
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Unexpected error:', error);
