@@ -119,6 +119,7 @@ export interface ServiceOrder {
 export interface User {
   id: string;
   name: string;
+  email?: string;
   role: 'admin' | 'seller' | 'manager';
   active: boolean;
 }

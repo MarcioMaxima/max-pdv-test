@@ -40,10 +40,10 @@ serve(async (req) => {
       );
     }
 
-    // Check if calling user is admin or manager
+    // Check if calling user is admin and get their tenant_id
     const { data: roleData, error: roleError } = await supabaseAdmin
       .from('user_roles')
-      .select('role')
+      .select('role, tenant_id')
       .eq('user_id', callingUser.id)
       .single();
 
@@ -55,12 +55,21 @@ serve(async (req) => {
       );
     }
 
-    if (roleData.role !== 'admin' && roleData.role !== 'manager') {
+    if (roleData.role !== 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Apenas administradores e gerentes podem cadastrar usuários' }),
+        JSON.stringify({ error: 'Apenas administradores podem cadastrar usuários' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Get admin's tenant_id from profile
+    const { data: adminProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('tenant_id')
+      .eq('id', callingUser.id)
+      .single();
+
+    const adminTenantId = adminProfile?.tenant_id;
 
     // Get request body
     const { email, password, name, role } = await req.json();
@@ -80,26 +89,31 @@ serve(async (req) => {
       );
     }
 
-    // Validate role
-    const validRoles = ['admin', 'manager', 'seller'];
+    // Validate role - only manager or seller allowed
+    const validRoles = ['manager', 'seller'];
     const userRole = role && validRoles.includes(role) ? role : 'seller';
 
-    // Only admins can create other admins
-    if (userRole === 'admin' && roleData.role !== 'admin') {
+    // Admin cannot be created through this endpoint
+    if (role === 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Apenas administradores podem criar outros administradores' }),
+        JSON.stringify({ error: 'Não é possível criar administradores por este método' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`Creating user: ${email} with role: ${userRole}`);
 
-    // Create the user using admin API
+    console.log(`Admin tenant_id: ${adminTenantId}`);
+
+    // Create the user using admin API with tenant_id in metadata
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true, // Auto-confirm email
-      user_metadata: { name }
+      user_metadata: { 
+        name,
+        tenant_id: adminTenantId // Pass tenant_id to be used by trigger
+      }
     });
 
     if (createError) {
@@ -126,21 +140,27 @@ serve(async (req) => {
       );
     }
 
-    // The handle_new_user trigger should create the profile and role automatically
-    // But let's update the role if it's different from 'seller' (default)
-    if (userRole !== 'seller') {
-      // Wait a moment for the trigger to execute
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const { error: updateRoleError } = await supabaseAdmin
-        .from('user_roles')
-        .update({ role: userRole })
-        .eq('user_id', newUser.user.id);
-      
-      if (updateRoleError) {
-        console.error('Update role error:', updateRoleError);
-        // Continue anyway, admin can update role later
-      }
+    // Wait for trigger to execute, then update role and ensure tenant_id
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Update role to the specified one
+    const { error: updateRoleError } = await supabaseAdmin
+      .from('user_roles')
+      .update({ role: userRole, tenant_id: adminTenantId })
+      .eq('user_id', newUser.user.id);
+    
+    if (updateRoleError) {
+      console.error('Update role error:', updateRoleError);
+    }
+
+    // Ensure profile has the correct tenant_id
+    const { error: updateProfileError } = await supabaseAdmin
+      .from('profiles')
+      .update({ tenant_id: adminTenantId })
+      .eq('id', newUser.user.id);
+
+    if (updateProfileError) {
+      console.error('Update profile tenant error:', updateProfileError);
     }
 
     console.log(`User created successfully: ${newUser.user.id}`);
