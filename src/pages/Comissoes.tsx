@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -18,12 +19,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DollarSign, TrendingUp, ShoppingCart, Calendar, Eye, Percent, AlertCircle } from "lucide-react";
+import { DollarSign, TrendingUp, ShoppingCart, Calendar, Eye, Percent, AlertCircle, Users, User } from "lucide-react";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
 import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface SellerCommission {
+  sellerId: string;
+  sellerName: string;
+  totalSales: number;
+  commissionAmount: number;
+  ordersCount: number;
+}
 
 export default function Comissoes() {
   const { orders, isLoading: isLoadingOrders } = useSupabaseOrders();
@@ -32,9 +41,14 @@ export default function Comissoes() {
   
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedSellerId, setSelectedSellerId] = useState<string>("all");
 
-  // Get orders for current user in selected month
-  const myOrders = useMemo(() => {
+  const isAdmin = authUser?.role === 'admin';
+  const isManager = authUser?.role === 'manager';
+  const canViewAll = isAdmin || isManager;
+
+  // Get all orders in selected month (filtered by user if not admin/manager)
+  const filteredOrders = useMemo(() => {
     if (!authUser || !orders) return [];
     
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -42,9 +56,6 @@ export default function Comissoes() {
     const monthEnd = endOfMonth(new Date(year, month - 1));
     
     return orders.filter(order => {
-      // Filter by seller (current user)
-      const isMyOrder = order.sellerId === authUser.id;
-      
       // Filter by date
       const orderDate = parseISO(order.createdAt);
       const isInMonth = isWithinInterval(orderDate, { start: monthStart, end: monthEnd });
@@ -52,17 +63,74 @@ export default function Comissoes() {
       // Only paid or partial orders count for commission
       const hasPaidAmount = (order.amountPaid || 0) > 0;
       
-      return isMyOrder && isInMonth && hasPaidAmount;
+      // If admin/manager, show all orders; otherwise only show user's orders
+      const isAccessible = canViewAll || order.sellerId === authUser.id;
+      
+      // Apply seller filter for admin/manager
+      const matchesSeller = selectedSellerId === "all" || order.sellerId === selectedSellerId;
+      
+      return isInMonth && hasPaidAmount && isAccessible && matchesSeller;
     });
-  }, [orders, authUser, selectedMonth]);
+  }, [orders, authUser, selectedMonth, canViewAll, selectedSellerId]);
+
+  // Get unique sellers for filter dropdown
+  const sellers = useMemo(() => {
+    if (!canViewAll || !orders) return [];
+    
+    const sellerMap = new Map<string, string>();
+    orders.forEach(order => {
+      if (order.sellerId && order.sellerName) {
+        sellerMap.set(order.sellerId, order.sellerName);
+      }
+    });
+    
+    return Array.from(sellerMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [orders, canViewAll]);
+
+  // Calculate commissions per seller (for admin/manager view)
+  const sellerCommissions = useMemo((): SellerCommission[] => {
+    if (!canViewAll || !orders) return [];
+    
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const monthStart = startOfMonth(new Date(year, month - 1));
+    const monthEnd = endOfMonth(new Date(year, month - 1));
+    const commissionRate = (settings?.commissionPercentage || 0) / 100;
+    
+    const commissionMap = new Map<string, SellerCommission>();
+    
+    orders.forEach(order => {
+      const orderDate = parseISO(order.createdAt);
+      const isInMonth = isWithinInterval(orderDate, { start: monthStart, end: monthEnd });
+      const hasPaidAmount = (order.amountPaid || 0) > 0;
+      
+      if (isInMonth && hasPaidAmount && order.sellerId) {
+        const existing = commissionMap.get(order.sellerId) || {
+          sellerId: order.sellerId,
+          sellerName: order.sellerName || 'Desconhecido',
+          totalSales: 0,
+          commissionAmount: 0,
+          ordersCount: 0,
+        };
+        
+        const amountPaid = order.amountPaid || 0;
+        existing.totalSales += amountPaid;
+        existing.commissionAmount += amountPaid * commissionRate;
+        existing.ordersCount += 1;
+        
+        commissionMap.set(order.sellerId, existing);
+      }
+    });
+    
+    return Array.from(commissionMap.values()).sort((a, b) => b.commissionAmount - a.commissionAmount);
+  }, [orders, selectedMonth, settings, canViewAll]);
 
   // Calculate commission stats
   const stats = useMemo(() => {
     const commissionRate = (settings?.commissionPercentage || 0) / 100;
     
-    const totalSales = myOrders.reduce((sum, order) => sum + (order.amountPaid || 0), 0);
+    const totalSales = filteredOrders.reduce((sum, order) => sum + (order.amountPaid || 0), 0);
     const totalCommission = totalSales * commissionRate;
-    const ordersCount = myOrders.length;
+    const ordersCount = filteredOrders.length;
     
     return {
       totalSales,
@@ -70,14 +138,14 @@ export default function Comissoes() {
       ordersCount,
       commissionRate: settings?.commissionPercentage || 0,
     };
-  }, [myOrders, settings]);
+  }, [filteredOrders, settings]);
 
   const isLoading = isLoadingOrders || isLoadingSettings;
 
   // Check if commission is enabled
   if (!isLoading && !settings?.usesCommission) {
     return (
-      <MainLayout title="Minhas Comissões">
+      <MainLayout title="Comissões">
         <Card className="p-8">
           <div className="flex flex-col items-center justify-center text-center space-y-4">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
@@ -85,8 +153,9 @@ export default function Comissoes() {
             </div>
             <h3 className="text-lg font-semibold">Comissões Desativadas</h3>
             <p className="text-muted-foreground max-w-md">
-              O sistema de comissões não está ativado. Entre em contato com o administrador 
-              para habilitar o cálculo de comissões sobre suas vendas.
+              O sistema de comissões não está ativado. {canViewAll 
+                ? "Ative nas configurações para calcular comissões sobre as vendas."
+                : "Entre em contato com o administrador para habilitar o cálculo de comissões sobre suas vendas."}
             </p>
           </div>
         </Card>
@@ -95,10 +164,10 @@ export default function Comissoes() {
   }
 
   return (
-    <MainLayout title="Minhas Comissões">
+    <MainLayout title={canViewAll ? "Comissões dos Vendedores" : "Minhas Comissões"}>
       <div className="space-y-6">
-        {/* Month Filter */}
-        <div className="flex items-center gap-4">
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Período:</span>
@@ -109,6 +178,28 @@ export default function Comissoes() {
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="w-48"
           />
+          
+          {canViewAll && sellers.length > 0 && (
+            <>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Vendedor:</span>
+              </div>
+              <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Todos vendedores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos vendedores</SelectItem>
+                  {sellers.map((seller) => (
+                    <SelectItem key={seller.id} value={seller.id}>
+                      {seller.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -137,7 +228,7 @@ export default function Comissoes() {
                 <TrendingUp className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Comissão a Receber</p>
+                <p className="text-sm text-muted-foreground">Comissão Total</p>
                 {isLoading ? (
                   <Skeleton className="h-6 w-24" />
                 ) : (
@@ -182,6 +273,47 @@ export default function Comissoes() {
           </Card>
         </div>
 
+        {/* Seller Summary Table (Admin/Manager only) */}
+        {canViewAll && sellerCommissions.length > 0 && selectedSellerId === "all" && (
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5" />
+              <h3 className="text-lg font-semibold">Resumo por Vendedor</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead className="text-center">Vendas</TableHead>
+                    <TableHead className="text-right">Total Vendido</TableHead>
+                    <TableHead className="text-right">Comissão ({stats.commissionRate}%)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sellerCommissions.map((seller) => (
+                    <TableRow key={seller.sellerId}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          {seller.sellerName}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">{seller.ordersCount}</TableCell>
+                      <TableCell className="text-right">
+                        R$ {seller.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-green-500">
+                        R$ {seller.commissionAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        )}
+
         {/* Orders Table */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -198,14 +330,16 @@ export default function Comissoes() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : myOrders.length === 0 ? (
+          ) : filteredOrders.length === 0 ? (
             <div className="text-center py-12">
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
                 <ShoppingCart className="h-8 w-8 text-muted-foreground" />
               </div>
               <p className="font-medium">Nenhuma venda no período</p>
               <p className="text-sm text-muted-foreground">
-                Suas vendas com pagamento aparecerão aqui.
+                {canViewAll 
+                  ? "As vendas com pagamento aparecerão aqui."
+                  : "Suas vendas com pagamento aparecerão aqui."}
               </p>
             </div>
           ) : (
@@ -216,12 +350,13 @@ export default function Comissoes() {
                     <TableHead>Pedido</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Cliente</TableHead>
+                    {canViewAll && <TableHead>Vendedor</TableHead>}
                     <TableHead className="text-right">Valor Pago</TableHead>
                     <TableHead className="text-right">Comissão</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {myOrders.slice(0, 10).map((order) => {
+                  {filteredOrders.slice(0, 10).map((order) => {
                     const commission = (order.amountPaid || 0) * (stats.commissionRate / 100);
                     return (
                       <TableRow key={order.id}>
@@ -230,6 +365,7 @@ export default function Comissoes() {
                           {format(parseISO(order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
                         </TableCell>
                         <TableCell>{order.customerName}</TableCell>
+                        {canViewAll && <TableCell>{order.sellerName || '—'}</TableCell>}
                         <TableCell className="text-right">
                           R$ {(order.amountPaid || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
@@ -241,9 +377,9 @@ export default function Comissoes() {
                   })}
                 </TableBody>
               </Table>
-              {myOrders.length > 10 && (
+              {filteredOrders.length > 10 && (
                 <p className="text-sm text-muted-foreground text-center mt-4">
-                  Mostrando 10 de {myOrders.length} vendas. Clique em "Ver Detalhes" para ver todas.
+                  Mostrando 10 de {filteredOrders.length} vendas. Clique em "Ver Detalhes" para ver todas.
                 </p>
               )}
             </div>
@@ -282,12 +418,13 @@ export default function Comissoes() {
                   <TableHead>Pedido</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Cliente</TableHead>
+                  {canViewAll && <TableHead>Vendedor</TableHead>}
                   <TableHead className="text-right">Valor Pago</TableHead>
                   <TableHead className="text-right">Comissão</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {myOrders.map((order) => {
+                {filteredOrders.map((order) => {
                   const commission = (order.amountPaid || 0) * (stats.commissionRate / 100);
                   return (
                     <TableRow key={order.id}>
@@ -296,6 +433,7 @@ export default function Comissoes() {
                         {format(parseISO(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                       </TableCell>
                       <TableCell>{order.customerName}</TableCell>
+                      {canViewAll && <TableCell>{order.sellerName || '—'}</TableCell>}
                       <TableCell className="text-right">
                         R$ {(order.amountPaid || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </TableCell>
