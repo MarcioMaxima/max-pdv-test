@@ -194,7 +194,8 @@ export default function Configuracoes() {
         const base64 = reader.result as string;
         setLogoPreview(base64);
         updateCompanySettings({ logoUrl: base64 });
-        toast.success("Logotipo atualizado!");
+        // Also save to cloud so it syncs across the app (sidebar, etc.)
+        updateCloudSettings({ logoUrl: base64 });
       };
       reader.readAsDataURL(file);
     }
