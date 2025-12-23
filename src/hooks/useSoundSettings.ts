@@ -7,6 +7,7 @@ export interface SoundSettings {
   volume: number; // 0-100
   soundType: SoundType;
   notificationSoundEnabled: boolean;
+  vibrationEnabled: boolean;
 }
 
 const STORAGE_KEY = "sound-settings";
@@ -16,6 +17,7 @@ const defaultSettings: SoundSettings = {
   volume: 60,
   soundType: "touch",
   notificationSoundEnabled: true,
+  vibrationEnabled: true,
 };
 
 // Load settings from localStorage
@@ -83,6 +85,10 @@ export const useSoundSettings = () => {
     updateSettings({ notificationSoundEnabled });
   }, [updateSettings]);
 
+  const setVibrationEnabled = useCallback((vibrationEnabled: boolean) => {
+    updateSettings({ vibrationEnabled });
+  }, [updateSettings]);
+
   return {
     settings,
     updateSettings,
@@ -90,5 +96,6 @@ export const useSoundSettings = () => {
     setVolume,
     setSoundType,
     setNotificationSoundEnabled,
+    setVibrationEnabled,
   };
 };
