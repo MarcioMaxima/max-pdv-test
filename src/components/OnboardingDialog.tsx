@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -71,7 +71,7 @@ interface OnboardingDialogProps {
   onComplete: () => void;
 }
 
-export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingDialogProps) {
+export const OnboardingDialog = forwardRef<HTMLDivElement, OnboardingDialogProps>(function OnboardingDialog({ open, onOpenChange, onComplete }, ref) {
   const [currentStep, setCurrentStep] = useState(0);
   
   const step = steps[currentStep];
@@ -113,7 +113,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md mx-auto">
+      <DialogContent ref={ref} className="sm:max-w-md mx-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -174,7 +174,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
       </DialogContent>
     </Dialog>
   );
-}
+});
 
 // Hook to manage onboarding state
 export function useOnboarding() {
