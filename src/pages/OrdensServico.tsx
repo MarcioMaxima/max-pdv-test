@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useStore } from "@/lib/store";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { ServiceOrder } from "@/lib/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,8 +38,8 @@ export default function OrdensServico() {
   const navigate = useNavigate();
   const tabFromUrl = searchParams.get('tab') || 'production';
   const orderIdFromUrl = searchParams.get('order');
-  const { companySettings, clearCart } = useStore();
-  const { settings: cloudSettings } = useCompanySettings();
+  const { clearCart } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
   const { orders, updateOrderStatus, deleteOrder, isLoading } = useSupabaseOrders();
   const { authUser } = useAuth();
   const { notifyOrderStatusChange } = useAutoNotifications();
@@ -124,7 +124,7 @@ export default function OrdensServico() {
     `);
 
     // Combine phones
-    const phones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const phones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     
     printWindow.document.write(`
       <div class="header-section">
@@ -312,7 +312,7 @@ export default function OrdensServico() {
     `);
     printWindow.document.write('</style></head><body>');
 
-    const reportPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const reportPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`
       <div class="header">
         ${companySettings.logoUrl 

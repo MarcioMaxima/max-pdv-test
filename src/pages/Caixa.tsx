@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { DialogHeaderWithAction } from "@/components/ui/dialog-header-with-action";
 import { PrintButton } from "@/components/ui/print-button";
 import { useStore } from "@/lib/store";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -51,7 +52,7 @@ export default function Caixa() {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   
-  const { companySettings } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
   // Apply fixed expenses on mount
   useEffect(() => {
     applyFixedExpenses();

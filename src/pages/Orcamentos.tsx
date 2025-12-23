@@ -27,11 +27,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { PrintButton, PrintIconButton } from "@/components/ui/print-button";
 import { Plus, Search, Eye, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
-import { useStore, ServiceOrder } from "@/lib/store";
+import { useStore } from "@/lib/store";
+import { ServiceOrder } from "@/lib/types";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { toast } from "sonner";
 
 export default function Orcamentos() {
-  const { orders, customers, updateOrder, companySettings } = useStore();
+  const { orders, customers, updateOrder } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
 
   const [search, setSearch] = useState("");
   const [viewOrder, setViewOrder] = useState<ServiceOrder | null>(null);

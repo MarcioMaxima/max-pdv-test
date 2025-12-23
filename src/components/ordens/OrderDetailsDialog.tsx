@@ -29,7 +29,7 @@ import { Calendar, Clock, User, FileText, Printer, ChevronDown, Trash2, Pencil, 
 import { ServiceOrder } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { useStore } from "@/lib/store";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { sendOrderViaWhatsApp } from "@/lib/whatsappUtils";
 import { useSupabaseCustomers } from "@/hooks/useSupabaseCustomers";
 
@@ -54,7 +54,7 @@ export function OrderDetailsDialog({
 }: OrderDetailsDialogProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { authUser } = useAuth();
-  const { companySettings } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
   const { customers } = useSupabaseCustomers();
 
   if (!order) return null;

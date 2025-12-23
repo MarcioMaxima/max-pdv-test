@@ -7,7 +7,7 @@ import { useSupabaseProducts } from "@/hooks/useSupabaseProducts";
 import { useSupabaseCategories } from "@/hooks/useSupabaseCategories";
 import { useSupabaseSubcategories } from "@/hooks/useSupabaseSubcategories";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { playClickSound } from "@/hooks/useClickSound";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,14 +136,14 @@ export default function Vendas() {
     removeFromCart, 
     clearCart, 
     users,
-    companySettings,
   } = useStore();
+  const { settings: companySettings } = useSyncedCompanySettings();
   const { products } = useSupabaseProducts();
   const { categories: dbCategories } = useSupabaseCategories();
   const { subcategories: dbSubcategories, getSubcategoriesByCategoryName } = useSupabaseSubcategories();
   const { customers, addCustomer, isAdding: isAddingCustomer } = useSupabaseCustomers();
   const { addOrder, updateOrder } = useSupabaseOrders();
-  const { settings: cloudSettings } = useCompanySettings();
+  
   const { authUser } = useAuth();
   const { notifyNewSale, notifyPendingPayment } = useAutoNotifications();
   
@@ -927,7 +927,7 @@ export default function Vendas() {
     `);
 
     // Header
-    const vendasPhones = [companySettings.phone, cloudSettings?.phone2].filter(Boolean).join(' | ');
+    const vendasPhones = [companySettings.phone, companySettings.phone2].filter(Boolean).join(' | ');
     printWindow.document.write(`
       <div class="header-section">
         ${companySettings.logoUrl 
