@@ -1491,54 +1491,54 @@ export default function Vendas() {
             ) : (
               cart.map((item) => (
                 <div key={item.id} className="p-3 bg-muted/50 rounded-lg space-y-2">
-                  {/* Header row: Name + Total + Actions */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm">{item.name}</p>
+                  {/* Header: Name/variation + Total (actions go below for readability) */}
+                  <div className="grid grid-cols-[1fr_auto] items-start gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm leading-snug break-words">{item.name}</p>
                       {item.variationName && (
-                        <p className="text-xs text-primary font-medium">{item.variationName}</p>
+                        <p className="text-xs text-primary font-medium leading-snug break-words mt-0.5">{item.variationName}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <span className="text-xs text-muted-foreground">Total</span>
-                        <p className="font-bold text-primary whitespace-nowrap">R$ {item.total.toFixed(2)}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <button 
-                          className="w-7 h-7 flex items-center justify-center hover:bg-blue-100 hover:text-blue-600 rounded bg-background border"
-                          title="Editar item"
-                          onClick={() => {
-                            const product = products.find(p => p.id === item.productId);
-                            if (product) {
-                              setSelectedProductForVariation(product);
-                              setVariationDialogOpen(true);
-                              setSelectedQuantity(item.quantity.toString());
-                              setSelectedTotal(item.total.toFixed(2));
-                              setCurrentBasePrice(item.price);
-                              setSelectedFinishings(item.finishing ? item.finishing.split(', ').filter(Boolean) : []);
-                              setCustomDescription(item.customDescription || "");
-                              if (item.dimensions) {
-                                const dims = item.dimensions.replace('m', '').split('x');
-                                setDimensions({ width: dims[0] || "", height: dims[1] || "" });
-                              } else {
-                                setDimensions({ width: "", height: "" });
-                              }
-                              removeFromCart(item.id);
-                            }
-                          }}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          className="w-7 h-7 flex items-center justify-center hover:bg-red-100 hover:text-red-600 rounded bg-background border"
-                          title="Remover item"
-                          onClick={() => removeFromCart(item.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+
+                    <div className="text-right w-[110px]">
+                      <span className="text-xs text-muted-foreground">Total</span>
+                      <p className="font-bold text-primary whitespace-nowrap">R$ {item.total.toFixed(2)}</p>
                     </div>
+                  </div>
+
+                  <div className="flex justify-end gap-1 -mt-1">
+                    <button
+                      className="w-8 h-8 flex items-center justify-center hover:bg-blue-100 hover:text-blue-600 rounded bg-background border"
+                      title="Editar item"
+                      onClick={() => {
+                        const product = products.find(p => p.id === item.productId);
+                        if (product) {
+                          setSelectedProductForVariation(product);
+                          setVariationDialogOpen(true);
+                          setSelectedQuantity(item.quantity.toString());
+                          setSelectedTotal(item.total.toFixed(2));
+                          setCurrentBasePrice(item.price);
+                          setSelectedFinishings(item.finishing ? item.finishing.split(', ').filter(Boolean) : []);
+                          setCustomDescription(item.customDescription || "");
+                          if (item.dimensions) {
+                            const dims = item.dimensions.replace('m', '').split('x');
+                            setDimensions({ width: dims[0] || "", height: dims[1] || "" });
+                          } else {
+                            setDimensions({ width: "", height: "" });
+                          }
+                          removeFromCart(item.id);
+                        }
+                      }}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      className="w-8 h-8 flex items-center justify-center hover:bg-red-100 hover:text-red-600 rounded bg-background border"
+                      title="Remover item"
+                      onClick={() => removeFromCart(item.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   {/* Details row: Dimensions, Finishing */}
