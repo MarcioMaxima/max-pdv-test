@@ -149,6 +149,7 @@ export default function OrdensServico() {
           </div>
           <div class="text-right">
             <div><strong>Cliente:</strong> ${order.customerName}</div>
+            ${order.sellerName ? `<div><strong>Vendedor:</strong> ${order.sellerName}</div>` : ''}
           </div>
         </div>
       </div>
