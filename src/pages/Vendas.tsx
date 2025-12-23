@@ -240,22 +240,17 @@ export default function Vendas() {
     }
   }, [users, selectedSeller, authUser]);
 
-  // Ensure default customer "Consumidor" exists and select it by default
+  // Ensure default customer "Consumidor" exists as an option (but don't auto-select)
   const [defaultCustomerCreated, setDefaultCustomerCreated] = useState(false);
   
   useEffect(() => {
-    // Wait for customers to load (could be empty array if none exist yet)
+    // Wait for customers to load
     if (customers === undefined) return;
     
     const defaultCustomer = customers.find(c => c.name === DEFAULT_CUSTOMER_NAME);
     
-    if (defaultCustomer) {
-      // Default customer exists, select it if no customer is selected
-      if (!selectedCustomer) {
-        setSelectedCustomer(defaultCustomer.id);
-      }
-    } else if (!defaultCustomerCreated && !isAddingCustomer) {
-      // Create default customer if it doesn't exist
+    // Create default customer if it doesn't exist (as an option, not selected)
+    if (!defaultCustomer && !defaultCustomerCreated && !isAddingCustomer) {
       setDefaultCustomerCreated(true);
       addCustomer({
         name: DEFAULT_CUSTOMER_NAME,
@@ -265,7 +260,7 @@ export default function Vendas() {
         notes: 'Cliente padrão para vendas rápidas'
       });
     }
-  }, [customers, selectedCustomer, addCustomer, defaultCustomerCreated, isAddingCustomer]);
+  }, [customers, addCustomer, defaultCustomerCreated, isAddingCustomer]);
 
   // Load editing order from sessionStorage - only run once when we have products
   const [orderLoaded, setOrderLoaded] = useState(false);
