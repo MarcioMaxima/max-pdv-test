@@ -46,6 +46,8 @@ export function useCompanySettings() {
           notifyPendingPayments: data.notify_pending_payments ?? true,
           notifyOrderStatus: data.notify_order_status ?? true,
           loginHeaderColor: data.login_header_color || '#ffffff',
+          usesCommission: data.uses_commission ?? false,
+          commissionPercentage: data.commission_percentage ?? 0,
         } as CompanySettings;
       } else {
         // Sellers can only access public branding data (no CNPJ, email, etc.)
@@ -141,6 +143,9 @@ export function useCompanySettings() {
       if (newSettings.notifyOrderStatus !== undefined) dbSettings.notify_order_status = newSettings.notifyOrderStatus;
       // Login settings
       if (newSettings.loginHeaderColor !== undefined) dbSettings.login_header_color = newSettings.loginHeaderColor;
+      // Commission settings
+      if (newSettings.usesCommission !== undefined) dbSettings.uses_commission = newSettings.usesCommission;
+      if (newSettings.commissionPercentage !== undefined) dbSettings.commission_percentage = newSettings.commissionPercentage;
 
       if (settings?.id) {
         // Update existing

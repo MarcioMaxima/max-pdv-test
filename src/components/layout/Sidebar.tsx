@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   X,
   BookOpen,
+  Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const menuItems = [
   { icon: ClipboardList, label: "Produção", path: "/ordens-servico", roles: ['admin', 'manager', 'seller'] },
   { icon: Users, label: "Clientes", path: "/clientes", roles: ['admin', 'manager', 'seller'] },
   { icon: Package, label: "Produtos", path: "/produtos", roles: ['admin', 'manager', 'seller'] },
+  { icon: Percent, label: "Minhas Comissões", path: "/comissoes", roles: ['admin', 'manager', 'seller'] },
   { icon: DollarSign, label: "Caixa", path: "/caixa", roles: ['admin', 'manager'] },
   { icon: AlertTriangle, label: "Contas a Receber", path: "/contas-receber", roles: ['admin', 'manager'] },
   { icon: Wallet, label: "Contas a Pagar", path: "/contas-pagar", roles: ['admin', 'manager'] },

@@ -34,6 +34,8 @@ export function useSyncedCompanySettings() {
         notifyPendingPayments: cloudSettings.notifyPendingPayments ?? localSettings.notifyPendingPayments ?? true,
         notifyOrderStatus: cloudSettings.notifyOrderStatus ?? localSettings.notifyOrderStatus ?? true,
         loginHeaderColor: cloudSettings.loginHeaderColor || localSettings.loginHeaderColor || '#ffffff',
+        usesCommission: cloudSettings.usesCommission ?? localSettings.usesCommission ?? false,
+        commissionPercentage: cloudSettings.commissionPercentage ?? localSettings.commissionPercentage ?? 0,
         theme: localSettings.theme, // Theme is still local-only for now
       };
     }

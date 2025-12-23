@@ -51,6 +51,7 @@ export type Database = {
           address: string | null
           auto_print_on_sale: boolean | null
           cnpj: string | null
+          commission_percentage: number | null
           created_at: string | null
           email: string | null
           id: string
@@ -68,12 +69,14 @@ export type Database = {
           print_logo_url: string | null
           tenant_id: string | null
           updated_at: string | null
+          uses_commission: boolean | null
           uses_stock: boolean | null
         }
         Insert: {
           address?: string | null
           auto_print_on_sale?: boolean | null
           cnpj?: string | null
+          commission_percentage?: number | null
           created_at?: string | null
           email?: string | null
           id?: string
@@ -91,12 +94,14 @@ export type Database = {
           print_logo_url?: string | null
           tenant_id?: string | null
           updated_at?: string | null
+          uses_commission?: boolean | null
           uses_stock?: boolean | null
         }
         Update: {
           address?: string | null
           auto_print_on_sale?: boolean | null
           cnpj?: string | null
+          commission_percentage?: number | null
           created_at?: string | null
           email?: string | null
           id?: string
@@ -114,6 +119,7 @@ export type Database = {
           print_logo_url?: string | null
           tenant_id?: string | null
           updated_at?: string | null
+          uses_commission?: boolean | null
           uses_stock?: boolean | null
         }
         Relationships: [
