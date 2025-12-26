@@ -17,6 +17,7 @@ import {
   X,
   BookOpen,
   Percent,
+  Instagram,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -215,8 +216,24 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
           </ul>
         </nav>
 
+        {/* Instagram Link */}
+        <div className={cn("border-t border-sidebar-border px-3 py-2", !showLabels && "flex justify-center")}>
+          <a
+            href="https://www.instagram.com/maximaeimpressos"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              "flex items-center gap-2 text-sidebar-foreground/70 hover:text-[#E4405F] transition-colors",
+              !showLabels && "justify-center"
+            )}
+          >
+            <Instagram className="h-5 w-5 flex-shrink-0" />
+            {showLabels && <span className="text-sm">@maximaeimpressos</span>}
+          </a>
+        </div>
+
         {/* User Section */}
-        <div className="border-t border-sidebar-border p-3 pb-safe mt-auto">
+        <div className="border-t border-sidebar-border p-3 pb-safe">
           <div className={cn("flex items-center gap-3", !showLabels && "justify-center")}>
             <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center flex-shrink-0">
               <span className="text-sidebar-foreground text-sm font-medium">{getUserInitials()}</span>
