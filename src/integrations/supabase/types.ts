@@ -491,6 +491,78 @@ export type Database = {
           },
         ]
       }
+      receivables: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          description: string
+          due_date: string
+          id: string
+          installment_number: number
+          notes: string | null
+          order_id: string
+          paid: boolean
+          paid_at: string | null
+          payment_method: string | null
+          tenant_id: string | null
+          total_amount: number
+          total_installments: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          description: string
+          due_date: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          order_id: string
+          paid?: boolean
+          paid_at?: string | null
+          payment_method?: string | null
+          tenant_id?: string | null
+          total_amount: number
+          total_installments?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          description?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          order_id?: string
+          paid?: boolean
+          paid_at?: string | null
+          payment_method?: string | null
+          tenant_id?: string | null
+          total_amount?: number
+          total_installments?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivables_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivables_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_orders: {
         Row: {
           amount_paid: number | null
