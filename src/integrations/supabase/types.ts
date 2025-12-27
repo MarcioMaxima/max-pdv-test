@@ -312,6 +312,85 @@ export type Database = {
           },
         ]
       }
+      pending_installments: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          description: string
+          due_date: string
+          expense_id: string | null
+          id: string
+          installment_number: number
+          notes: string | null
+          paid: boolean
+          paid_at: string | null
+          supplier_id: string | null
+          supplier_name: string | null
+          tenant_id: string | null
+          total_amount: number
+          total_installments: number
+        }
+        Insert: {
+          amount: number
+          category?: string | null
+          created_at?: string
+          description: string
+          due_date: string
+          expense_id?: string | null
+          id?: string
+          installment_number: number
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+          tenant_id?: string | null
+          total_amount: number
+          total_installments: number
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string
+          expense_id?: string | null
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+          tenant_id?: string | null
+          total_amount?: number
+          total_installments?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_installments_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_installments_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_installments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string
