@@ -671,9 +671,7 @@ export default function Caixa() {
                           <TableRow>
                             <TableHead>Gasto</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
-                            <TableHead className="text-center">Dia</TableHead>
-                            <TableHead className="text-center">Ativo</TableHead>
-                            <TableHead className="w-[80px]"></TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -688,32 +686,23 @@ export default function Caixa() {
                               <TableCell className="text-right font-medium text-destructive">
                                 R$ {expense.amount.toFixed(2)}
                               </TableCell>
-                              <TableCell className="text-center">
-                                <span className="bg-muted px-2 py-1 rounded text-xs font-medium">
-                                  Dia {expense.dueDay}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Switch
-                                  checked={expense.active}
-                                  onCheckedChange={(checked) => handleToggleFixedExpense(expense.id, checked)}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
+                              <TableCell className="text-right">
+                                <div className="flex gap-1 justify-end">
                                   <Button
                                     size="icon"
-                                    variant="ghost"
+                                    variant="outline"
                                     className="h-8 w-8"
                                     onClick={() => handleEditFixedExpense(expense)}
+                                    title="Editar"
                                   >
                                     <Edit2 className="w-4 h-4" />
                                   </Button>
                                   <Button
                                     size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    variant="destructive"
+                                    className="h-8 w-8"
                                     onClick={() => handleDeleteFixedExpense(expense.id)}
+                                    title="Excluir"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
