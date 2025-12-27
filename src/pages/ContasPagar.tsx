@@ -51,11 +51,13 @@ import {
   Plus,
   Edit2,
   Trash2,
+  CreditCard,
 } from "lucide-react";
 import { useSupabaseSuppliers } from "@/hooks/useSupabaseSuppliers";
 import { useSupabaseExpenses } from "@/hooks/useSupabaseExpenses";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
 import { useSupabaseFixedExpenses, FixedExpense } from "@/hooks/useSupabaseFixedExpenses";
+import { useSupabasePendingInstallments, PendingInstallment } from "@/hooks/useSupabasePendingInstallments";
 import { useAuth } from "@/hooks/useAuth";
 import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO, addMonths } from "date-fns";
@@ -76,6 +78,7 @@ export default function ContasPagar() {
   const { expenses, supplierBalances, getSupplierBalance, isLoading: expensesLoading, addExpense } = useSupabaseExpenses();
   const { orders, isLoading: ordersLoading } = useSupabaseOrders();
   const { fixedExpenses, totalFixedExpenses, addFixedExpense, updateFixedExpense, deleteFixedExpense, isLoading: fixedLoading } = useSupabaseFixedExpenses();
+  const { pendingInstallments, totalPendingAmount, payInstallment, isLoading: installmentsLoading, isPaying: isPayingInstallment } = useSupabasePendingInstallments();
   const { authUser } = useAuth();
   const { settings: companySettings } = useSyncedCompanySettings();
   
@@ -98,8 +101,13 @@ export default function ContasPagar() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
   const [payingExpenseId, setPayingExpenseId] = useState<string | null>(null);
+  
+  // Installment details dialog state
+  const [selectedInstallment, setSelectedInstallment] = useState<PendingInstallment | null>(null);
+  const [installmentDetailsOpen, setInstallmentDetailsOpen] = useState(false);
+  const [payingInstallmentId, setPayingInstallmentId] = useState<string | null>(null);
 
-  const isLoading = suppliersLoading || expensesLoading || ordersLoading || fixedLoading;
+  const isLoading = suppliersLoading || expensesLoading || ordersLoading || fixedLoading || installmentsLoading;
 
   // Check if a fixed expense was already paid for a specific month
   const isFixedExpensePaidForMonth = (fixedExpenseId: string, month: number, year: number): boolean => {
@@ -164,6 +172,26 @@ export default function ContasPagar() {
     });
     
     setTimeout(() => setPayingExpenseId(null), 500);
+  };
+
+  // Handle paying an installment
+  const handlePayInstallment = (installment: PendingInstallment) => {
+    setPayingInstallmentId(installment.id);
+    
+    // Register the payment as an expense
+    addExpense({
+      supplierId: installment.supplierId || '',
+      supplierName: installment.supplierName || 'Compra Parcelada',
+      description: `${installment.description} (Parcela ${installment.installmentNumber}/${installment.totalInstallments})`,
+      amount: installment.amount,
+      date: new Date().toISOString(),
+      category: installment.category || 'Compras'
+    });
+    
+    // Mark installment as paid
+    payInstallment(installment.id);
+    
+    setTimeout(() => setPayingInstallmentId(null), 500);
   };
 
   const usesCommission = companySettings?.usesCommission || false;
@@ -534,8 +562,17 @@ export default function ContasPagar() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="despesas">
+        <Tabs defaultValue="parcelas">
           <TabsList className="flex-wrap">
+            <TabsTrigger value="parcelas" className="gap-2">
+              <CreditCard className="h-4 w-4" />
+              Parcelas
+              {pendingInstallments.length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                  {pendingInstallments.length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="despesas" className="gap-2">
               <DollarSign className="h-4 w-4" />
               Todas Despesas
@@ -555,6 +592,86 @@ export default function ContasPagar() {
               </TabsTrigger>
             )}
           </TabsList>
+
+          {/* Pending Installments Tab */}
+          <TabsContent value="parcelas">
+            <div className="space-y-4">
+              {/* Summary Card */}
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-destructive" />
+                      Parcelas Pendentes
+                    </span>
+                    <Badge variant="destructive" className="text-base px-3">
+                      R$ {totalPendingAmount.toFixed(2)}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {pendingInstallments.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <CreditCard className="w-10 h-10 mx-auto mb-2 text-success opacity-50" />
+                      <p className="text-sm font-medium text-success">Nenhuma parcela pendente!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {pendingInstallments.map((installment) => {
+                        const isOverdue = new Date(installment.dueDate) < new Date();
+                        return (
+                          <div 
+                            key={installment.id}
+                            className={`flex items-center justify-between p-3 rounded-lg bg-background border hover:shadow-md transition-all ${isOverdue ? 'border-destructive/50' : ''}`}
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${isOverdue ? 'bg-destructive/10' : 'bg-warning/10'}`}>
+                                <CreditCard className={`h-5 w-5 ${isOverdue ? 'text-destructive' : 'text-warning'}`} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium truncate">{installment.description}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Parcela {installment.installmentNumber}/{installment.totalInstallments} • 
+                                  <span className={`ml-1 ${isOverdue ? 'text-destructive font-semibold' : ''}`}>
+                                    Venc: {format(new Date(installment.dueDate), "dd/MM/yyyy", { locale: ptBR })}
+                                  </span>
+                                  {installment.supplierName && ` • ${installment.supplierName}`}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-destructive text-lg whitespace-nowrap">
+                                R$ {installment.amount.toFixed(2)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedInstallment(installment);
+                                  setInstallmentDetailsOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                size="sm"
+                                className="bg-success hover:bg-success/90 text-success-foreground gap-1"
+                                onClick={() => handlePayInstallment(installment)}
+                                disabled={payingInstallmentId === installment.id || isPayingInstallment}
+                              >
+                                <DollarSign className="h-4 w-4" />
+                                {payingInstallmentId === installment.id ? 'Pagando...' : 'Pagar'}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           {/* All Expenses Tab */}
           <TabsContent value="despesas">
@@ -1334,6 +1451,91 @@ export default function ContasPagar() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Installment Details Dialog */}
+        <Dialog open={installmentDetailsOpen} onOpenChange={setInstallmentDetailsOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                Detalhes da Parcela
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedInstallment && (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Descrição</p>
+                    <p className="font-semibold">{selectedInstallment.description}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Parcela</p>
+                      <p className="font-semibold">{selectedInstallment.installmentNumber} de {selectedInstallment.totalInstallments}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Valor da Parcela</p>
+                      <p className="font-bold text-destructive">R$ {selectedInstallment.amount.toFixed(2)}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Vencimento</p>
+                      <p className="font-semibold">
+                        {format(new Date(selectedInstallment.dueDate), "dd/MM/yyyy", { locale: ptBR })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Valor Total</p>
+                      <p className="font-semibold">R$ {selectedInstallment.totalAmount.toFixed(2)}</p>
+                    </div>
+                  </div>
+
+                  {selectedInstallment.supplierName && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Fornecedor</p>
+                      <p className="font-semibold">{selectedInstallment.supplierName}</p>
+                    </div>
+                  )}
+
+                  {selectedInstallment.category && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Categoria</p>
+                      <Badge variant="outline">{selectedInstallment.category}</Badge>
+                    </div>
+                  )}
+
+                  {selectedInstallment.notes && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Observações</p>
+                      <p className="text-sm">{selectedInstallment.notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setInstallmentDetailsOpen(false)}>
+                    Fechar
+                  </Button>
+                  <Button 
+                    className="bg-success hover:bg-success/90 text-success-foreground gap-2"
+                    onClick={() => {
+                      handlePayInstallment(selectedInstallment);
+                      setInstallmentDetailsOpen(false);
+                    }}
+                    disabled={payingInstallmentId === selectedInstallment.id || isPayingInstallment}
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    Pagar Parcela
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

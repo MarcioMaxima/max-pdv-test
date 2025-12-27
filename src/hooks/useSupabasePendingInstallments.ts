@@ -1,0 +1,169 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useTenant } from "./useTenant";
+
+export interface PendingInstallment {
+  id: string;
+  expenseId: string | null;
+  supplierId: string | null;
+  supplierName: string | null;
+  description: string;
+  totalAmount: number;
+  installmentNumber: number;
+  totalInstallments: number;
+  amount: number;
+  dueDate: string;
+  paid: boolean;
+  paidAt: string | null;
+  category: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export function useSupabasePendingInstallments() {
+  const queryClient = useQueryClient();
+  const { tenantId } = useTenant();
+
+  const { data: installments = [], isLoading, error } = useQuery({
+    queryKey: ['pending_installments', tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pending_installments')
+        .select('*')
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
+
+      return data.map(i => ({
+        id: i.id,
+        expenseId: i.expense_id,
+        supplierId: i.supplier_id,
+        supplierName: i.supplier_name,
+        description: i.description,
+        totalAmount: Number(i.total_amount),
+        installmentNumber: i.installment_number,
+        totalInstallments: i.total_installments,
+        amount: Number(i.amount),
+        dueDate: i.due_date,
+        paid: i.paid,
+        paidAt: i.paid_at,
+        category: i.category,
+        notes: i.notes,
+        createdAt: i.created_at,
+      })) as PendingInstallment[];
+    },
+    enabled: !!tenantId,
+  });
+
+  const pendingInstallments = installments.filter(i => !i.paid);
+  const totalPendingAmount = pendingInstallments.reduce((sum, i) => sum + i.amount, 0);
+
+  const addInstallments = useMutation({
+    mutationFn: async (data: {
+      expenseId?: string;
+      supplierId?: string;
+      supplierName: string;
+      description: string;
+      totalAmount: number;
+      installments: number;
+      amountPerInstallment: number;
+      startDate: Date;
+      category?: string;
+      notes?: string;
+    }) => {
+      if (!tenantId) throw new Error("Tenant não encontrado");
+
+      const installmentsToInsert = [];
+      
+      for (let i = 1; i <= data.installments; i++) {
+        const dueDate = new Date(data.startDate);
+        dueDate.setMonth(dueDate.getMonth() + i);
+        
+        installmentsToInsert.push({
+          expense_id: data.expenseId || null,
+          supplier_id: data.supplierId || null,
+          supplier_name: data.supplierName,
+          description: data.description,
+          total_amount: data.totalAmount,
+          installment_number: i,
+          total_installments: data.installments,
+          amount: data.amountPerInstallment,
+          due_date: dueDate.toISOString().split('T')[0],
+          category: data.category || null,
+          notes: data.notes || null,
+          tenant_id: tenantId,
+        });
+      }
+
+      const { error } = await supabase
+        .from('pending_installments')
+        .insert(installmentsToInsert);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending_installments'] });
+    },
+    onError: (error) => {
+      console.error('Error adding installments:', error);
+      toast.error("Erro ao criar parcelas");
+    },
+  });
+
+  const payInstallment = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('pending_installments')
+        .update({ 
+          paid: true, 
+          paid_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending_installments'] });
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast.success("Parcela paga!");
+    },
+    onError: (error) => {
+      console.error('Error paying installment:', error);
+      toast.error("Erro ao pagar parcela");
+    },
+  });
+
+  const deleteInstallment = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('pending_installments')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending_installments'] });
+      toast.success("Parcela removida!");
+    },
+    onError: (error) => {
+      console.error('Error deleting installment:', error);
+      toast.error("Erro ao remover parcela");
+    },
+  });
+
+  return {
+    installments,
+    pendingInstallments,
+    totalPendingAmount,
+    isLoading,
+    error,
+    addInstallments: addInstallments.mutate,
+    payInstallment: payInstallment.mutate,
+    deleteInstallment: deleteInstallment.mutate,
+    isAdding: addInstallments.isPending,
+    isPaying: payInstallment.isPending,
+    isDeleting: deleteInstallment.isPending,
+  };
+}

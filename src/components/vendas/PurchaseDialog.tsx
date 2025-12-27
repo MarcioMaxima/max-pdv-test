@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   ShoppingBag,
   Plus,
@@ -29,9 +30,12 @@ import {
   User,
   Check,
   AlertCircle,
+  CreditCard,
+  Calendar,
 } from "lucide-react";
 import { useSupabaseSuppliers } from "@/hooks/useSupabaseSuppliers";
 import { useSupabaseExpenses } from "@/hooks/useSupabaseExpenses";
+import { useSupabasePendingInstallments } from "@/hooks/useSupabasePendingInstallments";
 import { toast } from "sonner";
 
 interface PurchaseDialogProps {
@@ -52,6 +56,7 @@ const EXPENSE_CATEGORIES = [
 export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const { suppliers, addSupplier, isAdding: isAddingSupplier } = useSupabaseSuppliers();
   const { addExpense, getSupplierBalance, isAdding: isAddingExpense } = useSupabaseExpenses();
+  const { addInstallments, isAdding: isAddingInstallments } = useSupabasePendingInstallments();
   
   // Purchase form state
   const [selectedSupplier, setSelectedSupplier] = useState<string>("");
@@ -60,6 +65,11 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Payment/Installment state
+  const [enableInstallments, setEnableInstallments] = useState(false);
+  const [paidAmount, setPaidAmount] = useState("");
+  const [installmentsCount, setInstallmentsCount] = useState("2");
   
   // New supplier form state
   const [newSupplierName, setNewSupplierName] = useState("");
@@ -74,11 +84,20 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     setCategory("");
     setNotes("");
     setSearchTerm("");
+    setEnableInstallments(false);
+    setPaidAmount("");
+    setInstallmentsCount("2");
     setNewSupplierName("");
     setNewSupplierPhone("");
     setNewSupplierEmail("");
     setNewSupplierContact("");
   };
+
+  const parsedAmount = parseFloat(amount) || 0;
+  const parsedPaidAmount = parseFloat(paidAmount) || 0;
+  const remainingAmount = parsedAmount - parsedPaidAmount;
+  const installments = parseInt(installmentsCount) || 2;
+  const installmentValue = remainingAmount > 0 ? remainingAmount / installments : 0;
 
   const handleSelectSupplier = (supplierId: string) => {
     setSelectedSupplier(supplierId);
@@ -110,26 +129,59 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       return;
     }
 
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (parsedAmount <= 0) {
       toast.error("Digite um valor válido");
       return;
     }
 
+    if (enableInstallments && parsedPaidAmount > parsedAmount) {
+      toast.error("Valor pago não pode ser maior que o total");
+      return;
+    }
+
     const supplier = suppliers.find(s => s.id === selectedSupplier);
+    const supplierName = supplier?.name || "Compra Avulsa";
 
-    addExpense({
-      supplierId: selectedSupplier || "",
-      supplierName: supplier?.name || "Compra Avulsa",
-      description: description.trim(),
-      amount: parsedAmount,
-      date: new Date().toISOString(),
-      category: category || "Compras",
-    });
+    // If paying something now, register that as expense
+    if (!enableInstallments || parsedPaidAmount > 0) {
+      const expenseAmount = enableInstallments ? parsedPaidAmount : parsedAmount;
+      
+      if (expenseAmount > 0) {
+        addExpense({
+          supplierId: selectedSupplier || "",
+          supplierName: supplierName,
+          description: enableInstallments 
+            ? `${description.trim()} (Entrada)` 
+            : description.trim(),
+          amount: expenseAmount,
+          date: new Date().toISOString(),
+          category: category || "Compras",
+        });
+      }
+    }
 
-    toast.success("Compra registrada com sucesso!", {
-      description: `${description} - R$ ${parsedAmount.toFixed(2)}`,
-    });
+    // If there are remaining installments to create
+    if (enableInstallments && remainingAmount > 0) {
+      addInstallments({
+        supplierId: selectedSupplier || undefined,
+        supplierName: supplierName,
+        description: description.trim(),
+        totalAmount: parsedAmount,
+        installments: installments,
+        amountPerInstallment: installmentValue,
+        startDate: new Date(),
+        category: category || "Compras",
+        notes: notes.trim() || undefined,
+      });
+
+      toast.success("Compra registrada com parcelas!", {
+        description: `${description} - ${installments}x de R$ ${installmentValue.toFixed(2)}`,
+      });
+    } else {
+      toast.success("Compra registrada com sucesso!", {
+        description: `${description} - R$ ${parsedAmount.toFixed(2)}`,
+      });
+    }
 
     resetForm();
     onOpenChange(false);
@@ -334,6 +386,70 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Installment Section */}
+            <div className="space-y-3 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Parcelar Pagamento
+                </Label>
+                <Switch
+                  checked={enableInstallments}
+                  onCheckedChange={setEnableInstallments}
+                />
+              </div>
+
+              {enableInstallments && (
+                <div className="space-y-3 bg-muted/50 rounded-lg p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Valor Pago Agora (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={parsedAmount}
+                        value={paidAmount}
+                        onChange={(e) => setPaidAmount(e.target.value)}
+                        placeholder="0,00"
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nº de Parcelas</Label>
+                      <Select value={installmentsCount} onValueChange={setInstallmentsCount}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover">
+                          {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                            <SelectItem key={n} value={n.toString()}>{n}x</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {remainingAmount > 0 && (
+                    <div className="bg-background rounded-lg p-2 border">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Valor restante:</span>
+                        <span className="font-semibold text-destructive">R$ {remainingAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Parcelas:</span>
+                        <span className="font-semibold">{installments}x de R$ {installmentValue.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Parcelas irão para Contas a Pagar
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
