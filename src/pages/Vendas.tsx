@@ -9,6 +9,7 @@ import { useSupabaseProducts } from "@/hooks/useSupabaseProducts";
 import { useSupabaseCategories } from "@/hooks/useSupabaseCategories";
 import { useSupabaseSubcategories } from "@/hooks/useSupabaseSubcategories";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
+import { useSupabaseReceivables } from "@/hooks/useSupabaseReceivables";
 import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { playClickSound } from "@/hooks/useClickSound";
 import { Button } from "@/components/ui/button";
@@ -147,6 +148,7 @@ export default function Vendas() {
   const { subcategories: dbSubcategories, getSubcategoriesByCategoryName } = useSupabaseSubcategories();
   const { customers, addCustomer, isAdding: isAddingCustomer } = useSupabaseCustomers();
   const { addOrder, updateOrder } = useSupabaseOrders();
+  const { addMultipleReceivables } = useSupabaseReceivables();
   
   const { authUser } = useAuth();
   const { notifyNewSale, notifyPendingPayment } = useAutoNotifications();
@@ -716,7 +718,7 @@ export default function Vendas() {
     setCustomerDialogOpen(false);
   };
 
-  const handleFinishSale = (method: 'cash' | 'pix' | 'card') => {
+  const handleFinishSale = async (method: 'cash' | 'pix' | 'card') => {
     if (cart.length === 0) return;
     
     // Validate customer selection
@@ -758,7 +760,7 @@ export default function Vendas() {
         paymentsArray.push({
           id: Math.random().toString(36).substr(2, 9),
           amount: paid,
-          date: new Date().toISOString(),
+          date: paymentDate.toISOString(),
           method: method
         });
       }
@@ -770,7 +772,7 @@ export default function Vendas() {
           paymentsArray.push({
             id: Math.random().toString(36).substr(2, 9),
             amount: installmentValue,
-            date: '', // Empty date means pending
+            date: installmentDates[i]?.toISOString() || '',
             method: null // null method means not paid yet
           });
         }
@@ -787,7 +789,7 @@ export default function Vendas() {
           amountPaid: paid,
           remainingAmount: remaining,
           payments: paymentsArray,
-          paymentMethod: remaining > 0 && installments > 1 ? 'card' : method, // Use 'card' for installments
+          paymentMethod: remaining > 0 && installments > 1 ? 'card' : method,
           sellerId: sellerIdResolved,
           sellerName: sellerNameResolved,
         }
@@ -808,7 +810,7 @@ export default function Vendas() {
         paymentsArray.push({
           id: Math.random().toString(36).substr(2, 9),
           amount: paid,
-          date: new Date().toISOString(),
+          date: paymentDate.toISOString(),
           method: method
         });
       }
@@ -820,7 +822,7 @@ export default function Vendas() {
           paymentsArray.push({
             id: Math.random().toString(36).substr(2, 9),
             amount: installmentValue,
-            date: '', // Empty date means pending
+            date: installmentDates[i]?.toISOString() || '',
             method: null // null method means not paid yet
           });
         }
@@ -837,12 +839,36 @@ export default function Vendas() {
         amountPaid: paid,
         remainingAmount: remaining,
         payments: paymentsArray,
-        paymentMethod: remaining > 0 && installments > 1 ? 'card' : method, // Use 'card' for installments
-        createdAt: new Date().toISOString(),
+        paymentMethod: remaining > 0 && installments > 1 ? 'card' : method,
+        createdAt: paymentDate.toISOString(),
         description: 'Venda Balcão',
         sellerId: sellerIdResolved,
         sellerName: sellerNameResolved,
       });
+
+      // Create receivables (Contas a Receber) for pending installments
+      if (remaining > 0 && installments >= 1) {
+        const installmentValue = remaining / installments;
+        const customerName = customer?.name || "Consumidor Final";
+        
+        const receivablesData = installmentDates.slice(0, installments).map((date, index) => ({
+          order_id: newOrderId,
+          customer_id: customer?.id || null,
+          customer_name: customerName,
+          description: `Venda #${newOrderId} - Parcela ${index + 1}/${installments}`,
+          total_amount: remaining,
+          installment_number: index + 1,
+          total_installments: installments,
+          amount: installmentValue,
+          due_date: format(date, 'yyyy-MM-dd'),
+        }));
+
+        try {
+          await addMultipleReceivables(receivablesData);
+        } catch (error) {
+          console.error("Erro ao criar contas a receber:", error);
+        }
+      }
 
       // Send notifications
       const customerNameForNotification = customer?.name || "Consumidor Final";
@@ -862,6 +888,8 @@ export default function Vendas() {
     setSelectedCustomer("");
     setAmountPaid("");
     setInstallments(1);
+    setInstallmentDates([]);
+    setPaymentDate(new Date());
     setReceiptDialogOpen(true);
   };
 
