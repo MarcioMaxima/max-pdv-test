@@ -194,12 +194,79 @@ export function useSupabasePendingInstallments() {
       supplierName?: string;
       category?: string;
       notes?: string;
+      totalAmount?: number;
+      newInstallmentsCount?: number;
+      firstDueDate?: string;
       installmentUpdates?: Array<{
         id: string;
         amount?: number;
         dueDate?: string;
       }>;
     }) => {
+      if (!tenantId) throw new Error("Tenant não encontrado");
+
+      // If changing total amount or installments count, recreate all installments
+      if (data.totalAmount !== undefined || data.newInstallmentsCount !== undefined) {
+        // Get original installment data for reference
+        const { data: originalInstallments, error: fetchError } = await supabase
+          .from('pending_installments')
+          .select('*')
+          .in('id', data.installmentIds)
+          .order('installment_number', { ascending: true });
+
+        if (fetchError) throw fetchError;
+        if (!originalInstallments || originalInstallments.length === 0) {
+          throw new Error("Parcelas não encontradas");
+        }
+
+        const original = originalInstallments[0];
+        const newTotalAmount = data.totalAmount ?? original.total_amount;
+        const newInstallmentsCount = data.newInstallmentsCount ?? original.total_installments;
+        const amountPerInstallment = Number((newTotalAmount / newInstallmentsCount).toFixed(2));
+        
+        // Parse the first due date
+        const firstDueDate = data.firstDueDate 
+          ? new Date(data.firstDueDate + 'T12:00:00') 
+          : new Date(original.due_date + 'T12:00:00');
+
+        // Delete old installments
+        const { error: deleteError } = await supabase
+          .from('pending_installments')
+          .delete()
+          .in('id', data.installmentIds);
+
+        if (deleteError) throw deleteError;
+
+        // Create new installments
+        const newInstallments = [];
+        for (let i = 0; i < newInstallmentsCount; i++) {
+          const dueDate = new Date(firstDueDate);
+          dueDate.setMonth(dueDate.getMonth() + i);
+
+          newInstallments.push({
+            expense_id: original.expense_id,
+            supplier_id: data.supplierName !== undefined ? original.supplier_id : original.supplier_id,
+            supplier_name: data.supplierName ?? original.supplier_name,
+            description: data.description ?? original.description,
+            total_amount: newTotalAmount,
+            installment_number: i + 1,
+            total_installments: newInstallmentsCount,
+            amount: amountPerInstallment,
+            due_date: dueDate.toISOString().split('T')[0],
+            category: data.category ?? original.category,
+            notes: data.notes ?? original.notes,
+            tenant_id: tenantId,
+          });
+        }
+
+        const { error: insertError } = await supabase
+          .from('pending_installments')
+          .insert(newInstallments);
+
+        if (insertError) throw insertError;
+        return;
+      }
+
       // Update common fields for all installments
       const updateData: Record<string, unknown> = {};
       if (data.description !== undefined) updateData.description = data.description;
