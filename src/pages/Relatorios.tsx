@@ -562,6 +562,135 @@ export default function Relatorios() {
           `).join("")}
         </table>
       `;
+    } else if (reportType === "cliente" && customerSearch && customerOrders.length > 0) {
+      const totalCompras = customerOrders.reduce((acc, o) => acc + o.total, 0);
+      const totalPago = customerOrders.reduce((acc, o) => acc + (o.amountPaid || 0), 0);
+      const totalPendente = totalCompras - totalPago;
+      
+      content = `
+        ${headerStyle}
+        ${actionBar}
+        <div class="header">
+          <div class="company">${companySettings?.name || "Empresa"}</div>
+          <div class="title">HISTÓRICO DE COMPRAS - ${customerSearch.toUpperCase()}</div>
+          <div class="period">Período: ${dateFrom || "Início"} até ${dateTo || "Hoje"}</div>
+          <div class="period">Emitido em: ${format(new Date(), "dd/MM/yyyy HH:mm")}</div>
+        </div>
+        <div class="summary">
+          <div class="summary-item"><span>Total de Pedidos:</span><span>${customerOrders.length}</span></div>
+          <div class="summary-item"><span>Total das Compras:</span><span>R$ ${totalCompras.toFixed(2)}</span></div>
+          <div class="summary-item"><span>Total Pago:</span><span>R$ ${totalPago.toFixed(2)}</span></div>
+          <div class="summary-item"><span>Total Pendente:</span><span>R$ ${totalPendente.toFixed(2)}</span></div>
+        </div>
+        <h3>Detalhamento de Compras</h3>
+        <table>
+          <tr><th>Data</th><th>Pedido</th><th>Total</th><th>Pago</th><th>Status</th></tr>
+          ${customerOrders.map((o) => `
+            <tr>
+              <td>${o.createdAt ? (isNaN(new Date(o.createdAt).getTime()) ? "-" : format(new Date(o.createdAt), "dd/MM/yyyy")) : "-"}</td>
+              <td>#${o.id.slice(-4)}</td>
+              <td>R$ ${o.total.toFixed(2)}</td>
+              <td>R$ ${(o.amountPaid || 0).toFixed(2)}</td>
+              <td>${o.paymentStatus === 'paid' ? 'Pago' : o.paymentStatus === 'partial' ? 'Parcial' : 'Pendente'}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td colspan="2">TOTAL</td>
+            <td>R$ ${totalCompras.toFixed(2)}</td>
+            <td>R$ ${totalPago.toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </table>
+      `;
+    } else if (reportType === "fornecedor" && fornecedor !== "todos") {
+      const selectedSupplier = suppliers.find(s => s.id === fornecedor);
+      content = `
+        ${headerStyle}
+        ${actionBar}
+        <div class="header">
+          <div class="company">${companySettings?.name || "Empresa"}</div>
+          <div class="title">COMPRAS - ${selectedSupplier?.name?.toUpperCase() || "FORNECEDOR"}</div>
+          <div class="period">Período: ${dateFrom || "Início"} até ${dateTo || "Hoje"}</div>
+          <div class="period">Emitido em: ${format(new Date(), "dd/MM/yyyy HH:mm")}</div>
+        </div>
+        <div class="summary">
+          <div class="summary-item"><span>Fornecedor:</span><span>${selectedSupplier?.name || "-"}</span></div>
+          <div class="summary-item"><span>Total de Compras:</span><span>${supplierPurchasesData.expensesToAnalyze.length}</span></div>
+          <div class="summary-item"><span>Valor Total:</span><span>R$ ${supplierPurchasesData.totalPurchased.toFixed(2)}</span></div>
+        </div>
+        <h3>Detalhamento de Compras</h3>
+        <table>
+          <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr>
+          ${supplierPurchasesData.expensesToAnalyze.map((e) => `
+            <tr>
+              <td>${e.date ? (isNaN(new Date(e.date).getTime()) ? "-" : format(new Date(e.date), "dd/MM/yyyy")) : "-"}</td>
+              <td>${e.description}</td>
+              <td>${e.category || "-"}</td>
+              <td>R$ ${e.amount.toFixed(2)}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td colspan="3">TOTAL</td>
+            <td>R$ ${supplierPurchasesData.totalPurchased.toFixed(2)}</td>
+          </tr>
+        </table>
+      `;
+    } else if (reportType === "top-produtos") {
+      content = `
+        ${headerStyle}
+        ${actionBar}
+        <div class="header">
+          <div class="company">${companySettings?.name || "Empresa"}</div>
+          <div class="title">PRODUTOS MAIS VENDIDOS</div>
+          <div class="period">Período: ${dateFrom || "Início"} até ${dateTo || "Hoje"}</div>
+          <div class="period">Emitido em: ${format(new Date(), "dd/MM/yyyy HH:mm")}</div>
+        </div>
+        <table>
+          <tr><th>#</th><th>Produto</th><th>Quantidade</th><th>Faturamento</th></tr>
+          ${topProductsData.map((p, i) => `
+            <tr>
+              <td>${i + 1}º</td>
+              <td>${p.name}</td>
+              <td>${p.quantity}</td>
+              <td>R$ ${p.revenue.toFixed(2)}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td colspan="2">TOTAL</td>
+            <td>${topProductsData.reduce((acc, p) => acc + p.quantity, 0)}</td>
+            <td>R$ ${topProductsData.reduce((acc, p) => acc + p.revenue, 0).toFixed(2)}</td>
+          </tr>
+        </table>
+      `;
+    } else if (reportType === "top-clientes") {
+      content = `
+        ${headerStyle}
+        ${actionBar}
+        <div class="header">
+          <div class="company">${companySettings?.name || "Empresa"}</div>
+          <div class="title">CLIENTES QUE MAIS COMPRAM</div>
+          <div class="period">Período: ${dateFrom || "Início"} até ${dateTo || "Hoje"}</div>
+          <div class="period">Emitido em: ${format(new Date(), "dd/MM/yyyy HH:mm")}</div>
+        </div>
+        <table>
+          <tr><th>#</th><th>Cliente</th><th>Pedidos</th><th>Total Comprado</th><th>Pago</th></tr>
+          ${topCustomersData.map((c, i) => `
+            <tr>
+              <td>${i + 1}º</td>
+              <td>${c.name}</td>
+              <td>${c.orders}</td>
+              <td>R$ ${c.total.toFixed(2)}</td>
+              <td>R$ ${c.paid.toFixed(2)}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td colspan="2">TOTAL</td>
+            <td>${topCustomersData.reduce((acc, c) => acc + c.orders, 0)}</td>
+            <td>R$ ${topCustomersData.reduce((acc, c) => acc + c.total, 0).toFixed(2)}</td>
+            <td>R$ ${topCustomersData.reduce((acc, c) => acc + c.paid, 0).toFixed(2)}</td>
+          </tr>
+        </table>
+      `;
     }
 
     printWindow.document.write(`<!DOCTYPE html><html><head><title>Relatório</title></head><body>${content}</body></html>`);
@@ -771,10 +900,16 @@ export default function Relatorios() {
         {/* Customer Orders Results */}
         {customerSearch && customerOrders.length > 0 && (
           <Card className="p-4 border-2 border-primary/30">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" />
-              Compras de "{customerSearch}" ({customerOrders.length} pedidos)
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" />
+                Compras de "{customerSearch}" ({customerOrders.length} pedidos)
+              </h3>
+              <Button onClick={() => handlePrint("cliente")} variant="outline" size="sm" className="gap-1">
+                <Printer className="h-3.5 w-3.5" />
+                Imprimir
+              </Button>
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1006,10 +1141,17 @@ export default function Relatorios() {
             {/* Top Products and Top Customers Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="p-4">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Star className="h-4 w-4 text-yellow-500" />
-                  Produtos Mais Vendidos
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Star className="h-4 w-4 text-yellow-500" />
+                    Produtos Mais Vendidos
+                  </h3>
+                  {topProductsData.length > 0 && (
+                    <Button onClick={() => handlePrint("top-produtos")} variant="ghost" size="sm" className="gap-1 h-7">
+                      <Printer className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
                   {topProductsData.length > 0 ? topProductsData.map((product, index) => (
                     <div key={product.name} className="flex justify-between items-center p-2 bg-muted/50 rounded">
@@ -1031,10 +1173,17 @@ export default function Relatorios() {
               </Card>
 
               <Card className="p-4">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-blue-500" />
-                  Clientes que Mais Compram
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Users className="h-4 w-4 text-blue-500" />
+                    Clientes que Mais Compram
+                  </h3>
+                  {topCustomersData.length > 0 && (
+                    <Button onClick={() => handlePrint("top-clientes")} variant="ghost" size="sm" className="gap-1 h-7">
+                      <Printer className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
                   {topCustomersData.length > 0 ? topCustomersData.map((customer, index) => (
                     <div 
@@ -1060,16 +1209,23 @@ export default function Relatorios() {
               </Card>
             </div>
 
-            {/* Purchases by Supplier */}
             {!isSeller && supplierPurchasesData.bySupplier.length > 0 && (
               <Card className="p-4">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-purple-500" />
-                  Compras por Fornecedor
-                  <Badge variant="secondary" className="ml-auto">
-                    Total: R$ {supplierPurchasesData.totalPurchased.toFixed(2)}
-                  </Badge>
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Truck className="h-4 w-4 text-purple-500" />
+                    Compras por Fornecedor
+                    <Badge variant="secondary" className="ml-2">
+                      Total: R$ {supplierPurchasesData.totalPurchased.toFixed(2)}
+                    </Badge>
+                  </h3>
+                  {fornecedor !== "todos" && (
+                    <Button onClick={() => handlePrint("fornecedor")} variant="outline" size="sm" className="gap-1">
+                      <Printer className="h-3.5 w-3.5" />
+                      Imprimir
+                    </Button>
+                  )}
+                </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
