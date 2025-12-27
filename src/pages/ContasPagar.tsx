@@ -73,7 +73,7 @@ interface SellerCommission {
 
 export default function ContasPagar() {
   const { suppliers, isLoading: suppliersLoading } = useSupabaseSuppliers();
-  const { expenses, supplierBalances, getSupplierBalance, isLoading: expensesLoading } = useSupabaseExpenses();
+  const { expenses, supplierBalances, getSupplierBalance, isLoading: expensesLoading, addExpense } = useSupabaseExpenses();
   const { orders, isLoading: ordersLoading } = useSupabaseOrders();
   const { fixedExpenses, totalFixedExpenses, addFixedExpense, updateFixedExpense, deleteFixedExpense, isLoading: fixedLoading } = useSupabaseFixedExpenses();
   const { authUser } = useAuth();
@@ -97,8 +97,46 @@ export default function ContasPagar() {
   const [fixedExpenseCategory, setFixedExpenseCategory] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
+  const [payingExpenseId, setPayingExpenseId] = useState<string | null>(null);
 
   const isLoading = suppliersLoading || expensesLoading || ordersLoading || fixedLoading;
+
+  // Check if a fixed expense was already paid this month
+  const isFixedExpensePaidThisMonth = (fixedExpenseId: string): boolean => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    
+    return expenses.some(e => 
+      e.category === 'Gasto Fixo' && 
+      e.description.includes(`[${fixedExpenseId}]`) &&
+      new Date(e.date).getMonth() === currentMonth &&
+      new Date(e.date).getFullYear() === currentYear
+    );
+  };
+
+  // Filter to show only unpaid fixed expenses for the current month
+  const unpaidFixedExpenses = fixedExpenses.filter(fe => 
+    fe.active && !isFixedExpensePaidThisMonth(fe.id)
+  );
+  
+  const totalUnpaidFixedExpenses = unpaidFixedExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  // Handle paying a fixed expense
+  const handlePayFixedExpense = (expense: FixedExpense) => {
+    setPayingExpenseId(expense.id);
+    
+    addExpense({
+      supplierId: '',
+      supplierName: 'Gasto Fixo',
+      description: `${expense.name} [${expense.id}]`,
+      amount: expense.amount,
+      date: new Date().toISOString(),
+      category: 'Gasto Fixo'
+    });
+    
+    setTimeout(() => setPayingExpenseId(null), 500);
+  };
 
   const usesCommission = companySettings?.usesCommission || false;
   const commissionPercentage = companySettings?.commissionPercentage || 0;
@@ -577,11 +615,70 @@ export default function ContasPagar() {
           {/* Fixed Expenses Tab */}
           <TabsContent value="gastos-fixos">
             <div className="space-y-4">
+              {/* Pending to Pay Section */}
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-destructive" />
+                      Contas a Pagar Este Mês
+                    </span>
+                    <Badge variant="destructive" className="text-base px-3">
+                      R$ {totalUnpaidFixedExpenses.toFixed(2)}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {unpaidFixedExpenses.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <DollarSign className="w-10 h-10 mx-auto mb-2 text-success opacity-50" />
+                      <p className="text-sm font-medium text-success">Todas as contas do mês estão pagas!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {unpaidFixedExpenses.map((expense) => (
+                        <div 
+                          key={expense.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-background border hover:shadow-md transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                              <CalendarDays className="h-5 w-5 text-destructive" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{expense.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Vencimento: Dia {expense.dueDay} • {expense.category}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-destructive text-lg">
+                              R$ {expense.amount.toFixed(2)}
+                            </span>
+                            <Button 
+                              size="sm"
+                              className="bg-success hover:bg-success/90 text-success-foreground gap-1"
+                              onClick={() => handlePayFixedExpense(expense)}
+                              disabled={payingExpenseId === expense.id}
+                            >
+                              <DollarSign className="h-4 w-4" />
+                              {payingExpenseId === expense.id ? 'Pagando...' : 'Pagar'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* All Fixed Expenses Management */}
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg font-semibold">Gastos Fixos Mensais</h3>
+                  <h3 className="text-lg font-semibold">Gerenciar Gastos Fixos</h3>
                   <p className="text-sm text-muted-foreground">
-                    Total mensal: R$ {totalFixedExpenses.toFixed(2)}
+                    Total cadastrado: R$ {totalFixedExpenses.toFixed(2)}/mês
                   </p>
                 </div>
                 <Button onClick={() => handleOpenFixedExpenseForm()} className="gap-2">
@@ -598,7 +695,7 @@ export default function ContasPagar() {
                       <TableHead className="font-semibold">Categoria</TableHead>
                       <TableHead className="font-semibold text-center">Dia Venc.</TableHead>
                       <TableHead className="font-semibold text-right">Valor</TableHead>
-                      <TableHead className="font-semibold text-center">Ativo</TableHead>
+                      <TableHead className="font-semibold text-center">Status</TableHead>
                       <TableHead className="font-semibold text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -622,57 +719,73 @@ export default function ContasPagar() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      fixedExpenses.map((expense) => (
-                        <TableRow 
-                          key={expense.id}
-                          className={`hover:bg-hover/10 transition-all ${!expense.active ? 'opacity-50' : ''}`}
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                <CalendarDays className="h-5 w-5 text-primary" />
+                      fixedExpenses.map((expense) => {
+                        const isPaid = isFixedExpensePaidThisMonth(expense.id);
+                        return (
+                          <TableRow 
+                            key={expense.id}
+                            className={`hover:bg-hover/10 transition-all ${!expense.active ? 'opacity-50' : ''}`}
+                          >
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${isPaid ? 'bg-success/10' : 'bg-primary/10'}`}>
+                                  <CalendarDays className={`h-5 w-5 ${isPaid ? 'text-success' : 'text-primary'}`} />
+                                </div>
+                                <span className="font-medium">{expense.name}</span>
                               </div>
-                              <span className="font-medium">{expense.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{expense.category}</Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="secondary">Dia {expense.dueDay}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-warning">
-                            R$ {expense.amount.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Switch
-                              checked={expense.active}
-                              onCheckedChange={(checked) => handleToggleFixedExpense(expense.id, checked)}
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleOpenFixedExpenseForm(expense)}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="destructive" 
-                                size="sm"
-                                onClick={() => {
-                                  setExpenseToDelete(expense.id);
-                                  setDeleteConfirmOpen(true);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{expense.category}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="secondary">Dia {expense.dueDay}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-warning">
+                              R$ {expense.amount.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {!expense.active ? (
+                                <Badge variant="outline" className="text-muted-foreground">Inativo</Badge>
+                              ) : isPaid ? (
+                                <Badge className="bg-success/10 text-success border-success/30">Pago</Badge>
+                              ) : (
+                                <Badge variant="destructive">Pendente</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                {expense.active && !isPaid && (
+                                  <Button 
+                                    size="sm"
+                                    className="bg-success hover:bg-success/90 text-success-foreground"
+                                    onClick={() => handlePayFixedExpense(expense)}
+                                    disabled={payingExpenseId === expense.id}
+                                  >
+                                    <DollarSign className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleOpenFixedExpenseForm(expense)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setExpenseToDelete(expense.id);
+                                    setDeleteConfirmOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
