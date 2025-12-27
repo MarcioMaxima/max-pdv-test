@@ -107,6 +107,13 @@ export default function ContasPagar() {
   const [installmentDetailsOpen, setInstallmentDetailsOpen] = useState(false);
   const [payingInstallmentId, setPayingInstallmentId] = useState<string | null>(null);
 
+  // Payment dialog state (for partial payments)
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentType, setPaymentType] = useState<'fixed' | 'installment' | null>(null);
+  const [paymentItem, setPaymentItem] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [isPartialPayment, setIsPartialPayment] = useState(false);
+
   const isLoading = suppliersLoading || expensesLoading || ordersLoading || fixedLoading || installmentsLoading;
 
   // Check if a fixed expense was already paid for a specific month
@@ -158,40 +165,68 @@ export default function ContasPagar() {
   
   const totalPendingFixedExpenses = pendingFixedExpenses.reduce((sum, p) => sum + p.expense.amount, 0);
 
-  // Handle paying a fixed expense
-  const handlePayFixedExpense = (expense: FixedExpense) => {
-    setPayingExpenseId(expense.id);
-    
-    addExpense({
-      supplierId: '',
-      supplierName: 'Gasto Fixo',
-      description: `${expense.name} [${expense.id}]`,
-      amount: expense.amount,
-      date: new Date().toISOString(),
-      category: 'Gasto Fixo'
-    });
-    
-    setTimeout(() => setPayingExpenseId(null), 500);
+  // Open payment dialog
+  const openPaymentDialog = (type: 'fixed' | 'installment', item: any, amount: number) => {
+    setPaymentType(type);
+    setPaymentItem(item);
+    setPaymentAmount(amount.toFixed(2));
+    setIsPartialPayment(false);
+    setPaymentDialogOpen(true);
   };
 
-  // Handle paying an installment
+  // Handle confirming payment
+  const handleConfirmPayment = () => {
+    const amount = parseFloat(paymentAmount) || 0;
+    if (amount <= 0) return;
+
+    if (paymentType === 'fixed' && paymentItem) {
+      const expense = paymentItem as FixedExpense;
+      setPayingExpenseId(expense.id);
+      
+      addExpense({
+        supplierId: '',
+        supplierName: 'Gasto Fixo',
+        description: `${expense.name} [${expense.id}]${isPartialPayment ? ' (Parcial)' : ''}`,
+        amount: amount,
+        date: new Date().toISOString(),
+        category: 'Gasto Fixo'
+      });
+      
+      setTimeout(() => setPayingExpenseId(null), 500);
+    } else if (paymentType === 'installment' && paymentItem) {
+      const installment = paymentItem as PendingInstallment;
+      setPayingInstallmentId(installment.id);
+      
+      addExpense({
+        supplierId: installment.supplierId || '',
+        supplierName: installment.supplierName || 'Compra Parcelada',
+        description: `${installment.description} (Parcela ${installment.installmentNumber}/${installment.totalInstallments})${isPartialPayment ? ' - Parcial' : ''}`,
+        amount: amount,
+        date: new Date().toISOString(),
+        category: installment.category || 'Compras'
+      });
+      
+      // Only mark as paid if paying full amount
+      if (!isPartialPayment || amount >= installment.amount) {
+        payInstallment(installment.id);
+      }
+      
+      setTimeout(() => setPayingInstallmentId(null), 500);
+    }
+
+    setPaymentDialogOpen(false);
+    setPaymentItem(null);
+    setPaymentType(null);
+  };
+
+  // Quick pay for fixed expense (full amount)
+  const handlePayFixedExpense = (expense: FixedExpense) => {
+    openPaymentDialog('fixed', expense, expense.amount);
+  };
+
+  // Quick pay for installment (full amount)
   const handlePayInstallment = (installment: PendingInstallment) => {
-    setPayingInstallmentId(installment.id);
-    
-    // Register the payment as an expense
-    addExpense({
-      supplierId: installment.supplierId || '',
-      supplierName: installment.supplierName || 'Compra Parcelada',
-      description: `${installment.description} (Parcela ${installment.installmentNumber}/${installment.totalInstallments})`,
-      amount: installment.amount,
-      date: new Date().toISOString(),
-      category: installment.category || 'Compras'
-    });
-    
-    // Mark installment as paid
-    payInstallment(installment.id);
-    
-    setTimeout(() => setPayingInstallmentId(null), 500);
+    openPaymentDialog('installment', installment, installment.amount);
   };
 
   const usesCommission = companySettings?.usesCommission || false;
@@ -1530,6 +1565,94 @@ export default function ContasPagar() {
                   >
                     <DollarSign className="h-4 w-4" />
                     Pagar Parcela
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment Dialog (with partial payment option) */}
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-success" />
+                Efetuar Pagamento
+              </DialogTitle>
+            </DialogHeader>
+            
+            {paymentItem && (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="font-medium">
+                    {paymentType === 'fixed' 
+                      ? (paymentItem as FixedExpense).name 
+                      : (paymentItem as PendingInstallment).description}
+                  </p>
+                  {paymentType === 'installment' && (
+                    <p className="text-sm text-muted-foreground">
+                      Parcela {(paymentItem as PendingInstallment).installmentNumber}/{(paymentItem as PendingInstallment).totalInstallments}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Valor total: <span className="font-semibold text-foreground">
+                      R$ {paymentType === 'fixed' 
+                        ? (paymentItem as FixedExpense).amount.toFixed(2)
+                        : (paymentItem as PendingInstallment).amount.toFixed(2)}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="partial-payment">Pagamento parcial</Label>
+                  <Switch
+                    id="partial-payment"
+                    checked={isPartialPayment}
+                    onCheckedChange={(checked) => {
+                      setIsPartialPayment(checked);
+                      if (!checked) {
+                        const fullAmount = paymentType === 'fixed' 
+                          ? (paymentItem as FixedExpense).amount 
+                          : (paymentItem as PendingInstallment).amount;
+                        setPaymentAmount(fullAmount.toFixed(2));
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="payment-amount">Valor a pagar (R$)</Label>
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    disabled={!isPartialPayment}
+                    className="text-lg font-bold"
+                  />
+                </div>
+
+                {isPartialPayment && paymentType === 'installment' && (
+                  <p className="text-xs text-warning flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Pagamento parcial não marca a parcela como paga
+                  </p>
+                )}
+
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button 
+                    className="bg-success hover:bg-success/90 text-success-foreground gap-2"
+                    onClick={handleConfirmPayment}
+                    disabled={parseFloat(paymentAmount) <= 0}
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    Confirmar Pagamento
                   </Button>
                 </DialogFooter>
               </div>
