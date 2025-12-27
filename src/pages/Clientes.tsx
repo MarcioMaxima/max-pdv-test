@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,12 +29,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { MaskedInput } from "@/components/ui/masked-input";
-import { Plus, Search, Edit, Trash2, User, Phone, Loader2, Users } from "lucide-react";
+import { Plus, Search, Edit, Trash2, User, Phone, Loader2, Users, Download, Upload, FileSpreadsheet } from "lucide-react";
 import { useSupabaseCustomers } from "@/hooks/useSupabaseCustomers";
 import { Customer } from "@/lib/types";
 import { toast } from "sonner";
+import { exportCustomersToExcel, generateCustomerTemplate, parseCustomersExcel } from "@/lib/excelUtils";
 
 export default function Clientes() {
   const { 
@@ -52,6 +59,8 @@ export default function Clientes() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -113,6 +122,59 @@ export default function Clientes() {
     }
   };
 
+  // Export customers to Excel
+  const handleExport = () => {
+    if (customers.length === 0) {
+      toast.error("Nenhum cliente para exportar");
+      return;
+    }
+    exportCustomersToExcel(customers);
+    toast.success(`${customers.length} cliente(s) exportado(s)`);
+  };
+
+  // Download template
+  const handleDownloadTemplate = () => {
+    generateCustomerTemplate();
+    toast.success("Template baixado");
+  };
+
+  // Import customers from Excel
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const importedCustomers = await parseCustomersExcel(file);
+      
+      if (importedCustomers.length === 0) {
+        toast.error("Nenhum cliente encontrado no arquivo");
+        return;
+      }
+
+      let imported = 0;
+      for (const c of importedCustomers) {
+        await addCustomer({
+          name: c.nome,
+          phone: c.telefone,
+          doc: c.cpf_cnpj || "",
+          email: c.email || "",
+          notes: c.observacoes || "",
+        });
+        imported++;
+      }
+      
+      toast.success(`${imported} cliente(s) importado(s) com sucesso`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao importar arquivo");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   // Loading skeleton
   const TableSkeleton = () => (
     <>
@@ -155,14 +217,49 @@ export default function Clientes() {
               className="pl-9 h-10 text-sm"
             />
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground gap-2 h-10 text-sm" onClick={() => handleOpenDialog()}>
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Novo Cliente</span>
-                <span className="sm:hidden">Novo</span>
-              </Button>
-            </DialogTrigger>
+          
+          <div className="flex gap-2">
+            {/* Import/Export Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 h-10 text-sm">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span className="hidden sm:inline">Excel</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExport} className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Exportar Clientes
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2" disabled={isImporting}>
+                  <Upload className="h-4 w-4" />
+                  {isImporting ? "Importando..." : "Importar Clientes"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadTemplate} className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Baixar Template
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Hidden file input for import */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleImport}
+              className="hidden"
+            />
+
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground gap-2 h-10 text-sm" onClick={() => handleOpenDialog()}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Novo Cliente</span>
+                  <span className="sm:hidden">Novo</span>
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle className="text-base lg:text-lg">{editingCustomer ? "Editar Cliente" : "Cadastrar Cliente"}</DialogTitle>
@@ -233,7 +330,8 @@ export default function Clientes() {
                 </div>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Mobile Cards View */}
