@@ -959,18 +959,10 @@ export default function Relatorios() {
               <div className="flex gap-2">
                 <Button
                   onClick={() => handlePrint(activeTab)}
-                  variant="outline"
-                  className="h-8 sm:h-9 text-xs sm:text-sm px-3"
+                  className="h-8 sm:h-9 gradient-primary text-primary-foreground text-xs sm:text-sm px-3"
                 >
                   <Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                   Imprimir
-                </Button>
-                <Button
-                  onClick={() => handlePrint(activeTab)}
-                  className="h-8 sm:h-9 gradient-primary text-primary-foreground text-xs sm:text-sm px-3"
-                >
-                  <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  PDF
                 </Button>
               </div>
             </div>
