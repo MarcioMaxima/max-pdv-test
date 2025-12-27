@@ -22,19 +22,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { DollarSign, TrendingUp, ShoppingCart, Calendar, Eye, Percent, AlertCircle, Users, User, Wallet } from "lucide-react";
+import { DollarSign, TrendingUp, ShoppingCart, Calendar, Eye, Percent, AlertCircle, Users, User } from "lucide-react";
 import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
-import { useSupabaseExpenses } from "@/hooks/useSupabaseExpenses";
 import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { useAuth } from "@/hooks/useAuth";
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
@@ -53,7 +42,6 @@ interface SellerCommission {
 
 export default function Comissoes() {
   const { orders, isLoading: isLoadingOrders } = useSupabaseOrders();
-  const { addExpense, isAdding: isAddingExpense } = useSupabaseExpenses();
   const { settings, isLoading: isLoadingSettings } = useSyncedCompanySettings();
   const { authUser } = useAuth();
   
@@ -64,9 +52,6 @@ export default function Comissoes() {
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const [selectedSeller, setSelectedSeller] = useState<SellerCommission | null>(null);
   const [sellerDialogOpen, setSellerDialogOpen] = useState(false);
-  const [payCommissionDialogOpen, setPayCommissionDialogOpen] = useState(false);
-  const [sellerToPay, setSellerToPay] = useState<SellerCommission | null>(null);
-  const [isPayingCommission, setIsPayingCommission] = useState(false);
 
   const isAdmin = authUser?.role === 'admin';
   const isManager = authUser?.role === 'manager';
@@ -180,40 +165,6 @@ export default function Comissoes() {
   const handleViewSellerOrders = (seller: SellerCommission) => {
     setSelectedSeller(seller);
     setSellerDialogOpen(true);
-  };
-
-  // Handle pay commission
-  const handleOpenPayCommission = (seller: SellerCommission) => {
-    setSellerToPay(seller);
-    setPayCommissionDialogOpen(true);
-  };
-
-  const handlePayCommission = async () => {
-    if (!sellerToPay) return;
-    
-    setIsPayingCommission(true);
-    try {
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const monthName = format(new Date(year, month - 1), 'MMMM/yyyy', { locale: ptBR });
-      
-      addExpense({
-        supplierId: '',
-        supplierName: 'Comissão',
-        description: `Comissão de ${sellerToPay.sellerName} - ${monthName}`,
-        amount: sellerToPay.commissionAmount,
-        date: new Date().toISOString(),
-        category: 'Comissão'
-      });
-      
-      toast.success(`Comissão de R$ ${sellerToPay.commissionAmount.toFixed(2)} paga para ${sellerToPay.sellerName}`);
-      setPayCommissionDialogOpen(false);
-      setSellerToPay(null);
-    } catch (error) {
-      console.error('Error paying commission:', error);
-      toast.error('Erro ao pagar comissão');
-    } finally {
-      setIsPayingCommission(false);
-    }
   };
 
   // Check if commission is enabled
@@ -395,30 +346,17 @@ export default function Comissoes() {
                         R$ {seller.commissionAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewSellerOrders(seller);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-success hover:bg-success/90 text-success-foreground"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenPayCommission(seller);
-                            }}
-                          >
-                            <Wallet className="h-4 w-4 mr-1" />
-                            Pagar
-                          </Button>
-                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewSellerOrders(seller);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -762,60 +700,6 @@ export default function Comissoes() {
         </DialogContent>
       </Dialog>
 
-      {/* Pay Commission Confirmation Dialog */}
-      <AlertDialog open={payCommissionDialogOpen} onOpenChange={setPayCommissionDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-success" />
-              Pagar Comissão
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {sellerToPay && (
-                <div className="space-y-3 mt-2">
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Vendedor:</span>
-                      <span className="font-semibold text-foreground">{sellerToPay.sellerName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Período:</span>
-                      <span className="font-semibold text-foreground">
-                        {format(new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]) - 1), 'MMMM/yyyy', { locale: ptBR })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total Vendido:</span>
-                      <span className="font-semibold text-foreground">
-                        R$ {sellerToPay.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2 mt-2">
-                      <span className="text-muted-foreground">Comissão a Pagar:</span>
-                      <span className="font-bold text-success text-lg">
-                        R$ {sellerToPay.commissionAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Este valor será registrado como despesa de comissão e debitado do fluxo de caixa.
-                  </p>
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPayingCommission}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handlePayCommission}
-              disabled={isPayingCommission}
-              className="bg-success hover:bg-success/90 text-success-foreground"
-            >
-              {isPayingCommission ? 'Pagando...' : 'Confirmar Pagamento'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </MainLayout>
   );
 }
