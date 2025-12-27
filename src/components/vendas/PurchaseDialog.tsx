@@ -80,10 +80,14 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const [paidAmount, setPaidAmount] = useState("");
   const [installmentsCount, setInstallmentsCount] = useState("2");
   const [entryDate, setEntryDate] = useState<Date>(new Date());
-  const [firstInstallmentDate, setFirstInstallmentDate] = useState<Date>(() => {
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    return nextMonth;
+  const [installmentDates, setInstallmentDates] = useState<Date[]>(() => {
+    const dates: Date[] = [];
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() + i + 1);
+      dates.push(date);
+    }
+    return dates;
   });
   
   // New supplier form state
@@ -103,9 +107,13 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     setPaidAmount("");
     setInstallmentsCount("2");
     setEntryDate(new Date());
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    setFirstInstallmentDate(nextMonth);
+    const dates: Date[] = [];
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() + i + 1);
+      dates.push(date);
+    }
+    setInstallmentDates(dates);
     setNewSupplierName("");
     setNewSupplierPhone("");
     setNewSupplierEmail("");
@@ -188,7 +196,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
         totalAmount: parsedAmount,
         installments: installments,
         amountPerInstallment: installmentValue,
-        startDate: firstInstallmentDate,
+        installmentDates: installmentDates.slice(0, installments),
         category: category || "Compras",
         notes: notes.trim() || undefined,
       });
@@ -479,32 +487,43 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">1ª Parcela</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full h-9 justify-start text-left font-normal",
-                              !firstInstallmentDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {firstInstallmentDate ? format(firstInstallmentDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={firstInstallmentDate}
-                            onSelect={(date) => date && setFirstInstallmentDate(date)}
-                            initialFocus
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                    {/* Individual installment date pickers */}
+                    {Array.from({ length: installments }).map((_, index) => (
+                      <div key={index} className="space-y-1">
+                        <Label className="text-xs">{index + 1}ª Parcela</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full h-9 justify-start text-left font-normal",
+                                !installmentDates[index] && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {installmentDates[index] 
+                                ? format(installmentDates[index], "dd/MM/yyyy", { locale: ptBR }) 
+                                : "Selecionar"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={installmentDates[index]}
+                              onSelect={(date) => {
+                                if (date) {
+                                  const newDates = [...installmentDates];
+                                  newDates[index] = date;
+                                  setInstallmentDates(newDates);
+                                }
+                              }}
+                              initialFocus
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    ))}
                   </div>
 
                   {remainingAmount > 0 && (
@@ -517,10 +536,6 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                         <span className="text-muted-foreground">Parcelas:</span>
                         <span className="font-semibold">{installments}x de R$ {installmentValue.toFixed(2)}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <CalendarIcon className="h-3 w-3" />
-                        1ª parcela em {format(firstInstallmentDate, "dd/MM/yyyy", { locale: ptBR })}
-                      </p>
                     </div>
                   )}
                 </div>

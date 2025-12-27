@@ -68,7 +68,7 @@ export function useSupabasePendingInstallments() {
       totalAmount: number;
       installments: number;
       amountPerInstallment: number;
-      startDate: Date;
+      installmentDates: Date[];
       category?: string;
       notes?: string;
     }) => {
@@ -76,9 +76,8 @@ export function useSupabasePendingInstallments() {
 
       const installmentsToInsert = [];
       
-      for (let i = 1; i <= data.installments; i++) {
-        const dueDate = new Date(data.startDate);
-        dueDate.setMonth(dueDate.getMonth() + (i - 1));
+      for (let i = 0; i < data.installments; i++) {
+        const dueDate = data.installmentDates[i] || new Date();
         
         installmentsToInsert.push({
           expense_id: data.expenseId || null,
@@ -86,7 +85,7 @@ export function useSupabasePendingInstallments() {
           supplier_name: data.supplierName,
           description: data.description,
           total_amount: data.totalAmount,
-          installment_number: i,
+          installment_number: i + 1,
           total_installments: data.installments,
           amount: data.amountPerInstallment,
           due_date: dueDate.toISOString().split('T')[0],
