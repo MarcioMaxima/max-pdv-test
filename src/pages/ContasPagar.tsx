@@ -118,8 +118,9 @@ export default function ContasPagar() {
   const [editPurchaseSupplier, setEditPurchaseSupplier] = useState("");
   const [editPurchaseCategory, setEditPurchaseCategory] = useState("");
   const [editPurchaseNotes, setEditPurchaseNotes] = useState("");
-  const [editInstallmentAmounts, setEditInstallmentAmounts] = useState<Record<string, string>>({});
-  const [editInstallmentDates, setEditInstallmentDates] = useState<Record<string, string>>({});
+  const [editPurchaseTotalAmount, setEditPurchaseTotalAmount] = useState("");
+  const [editPurchaseInstallmentsCount, setEditPurchaseInstallmentsCount] = useState("");
+  const [editPurchaseFirstDueDate, setEditPurchaseFirstDueDate] = useState("");
   const [deletePurchaseConfirmOpen, setDeletePurchaseConfirmOpen] = useState(false);
 
   // Payment dialog state (for partial payments)
@@ -281,16 +282,9 @@ export default function ContasPagar() {
     setEditPurchaseSupplier(sortedInstallments[0].supplierName || "");
     setEditPurchaseCategory(sortedInstallments[0].category || "");
     setEditPurchaseNotes(sortedInstallments[0].notes || "");
-    
-    // Initialize amounts and dates
-    const amounts: Record<string, string> = {};
-    const dates: Record<string, string> = {};
-    sortedInstallments.forEach(i => {
-      amounts[i.id] = i.amount.toFixed(2);
-      dates[i.id] = i.dueDate;
-    });
-    setEditInstallmentAmounts(amounts);
-    setEditInstallmentDates(dates);
+    setEditPurchaseTotalAmount(sortedInstallments[0].totalAmount.toFixed(2));
+    setEditPurchaseInstallmentsCount(sortedInstallments.length.toString());
+    setEditPurchaseFirstDueDate(sortedInstallments[0].dueDate);
     setEditPurchaseOpen(true);
   };
 
@@ -298,25 +292,36 @@ export default function ContasPagar() {
   const handleSaveEditPurchase = () => {
     if (!editPurchaseDescription.trim()) return;
     
-    // Build installment updates
-    const installmentUpdates = editPurchaseInstallments.map(i => {
-      const newAmount = parseFloat(editInstallmentAmounts[i.id] || "0");
-      const newDate = editInstallmentDates[i.id] || i.dueDate;
-      return {
-        id: i.id,
-        amount: newAmount !== i.amount ? newAmount : undefined,
-        dueDate: newDate !== i.dueDate ? newDate : undefined,
-      };
-    }).filter(u => u.amount !== undefined || u.dueDate !== undefined);
-
-    updatePurchase({
-      installmentIds: editPurchaseInstallments.map(i => i.id),
-      description: editPurchaseDescription.trim(),
-      supplierName: editPurchaseSupplier.trim() || undefined,
-      category: editPurchaseCategory.trim() || undefined,
-      notes: editPurchaseNotes.trim() || undefined,
-      installmentUpdates: installmentUpdates.length > 0 ? installmentUpdates : undefined,
-    });
+    const originalInstallment = editPurchaseInstallments[0];
+    const newTotalAmount = parseFloat(editPurchaseTotalAmount);
+    const newInstallmentsCount = parseInt(editPurchaseInstallmentsCount);
+    
+    // Check if total amount or installments count changed
+    const amountChanged = !isNaN(newTotalAmount) && newTotalAmount !== originalInstallment.totalAmount;
+    const countChanged = !isNaN(newInstallmentsCount) && newInstallmentsCount !== editPurchaseInstallments.length;
+    
+    if (amountChanged || countChanged) {
+      // Recreate installments
+      updatePurchase({
+        installmentIds: editPurchaseInstallments.map(i => i.id),
+        description: editPurchaseDescription.trim(),
+        supplierName: editPurchaseSupplier.trim() || undefined,
+        category: editPurchaseCategory.trim() || undefined,
+        notes: editPurchaseNotes.trim() || undefined,
+        totalAmount: amountChanged ? newTotalAmount : undefined,
+        newInstallmentsCount: countChanged ? newInstallmentsCount : undefined,
+        firstDueDate: editPurchaseFirstDueDate || undefined,
+      });
+    } else {
+      // Just update common fields
+      updatePurchase({
+        installmentIds: editPurchaseInstallments.map(i => i.id),
+        description: editPurchaseDescription.trim(),
+        supplierName: editPurchaseSupplier.trim() || undefined,
+        category: editPurchaseCategory.trim() || undefined,
+        notes: editPurchaseNotes.trim() || undefined,
+      });
+    }
     
     setEditPurchaseOpen(false);
   };
@@ -1918,49 +1923,57 @@ export default function ContasPagar() {
                 </div>
               </div>
 
-              {/* Installments section */}
-              <div className="space-y-2 border-t pt-3">
-                <Label className="text-sm font-semibold">Parcelas ({editPurchaseInstallments.length})</Label>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                  {editPurchaseInstallments.map((installment) => (
-                    <div 
-                      key={installment.id}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-muted/50"
-                    >
-                      <Badge variant="outline" className="shrink-0">
-                        {installment.installmentNumber}/{installment.totalInstallments}
-                      </Badge>
-                      <div className="flex-1 grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Valor (R$)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={editInstallmentAmounts[installment.id] || ""}
-                            onChange={(e) => setEditInstallmentAmounts(prev => ({
-                              ...prev,
-                              [installment.id]: e.target.value
-                            }))}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Vencimento</Label>
-                          <Input
-                            type="date"
-                            value={editInstallmentDates[installment.id] || ""}
-                            onChange={(e) => setEditInstallmentDates(prev => ({
-                              ...prev,
-                              [installment.id]: e.target.value
-                            }))}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              {/* Total amount and installments count */}
+              <div className="space-y-3 border-t pt-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-total-amount">Valor Total (R$)</Label>
+                    <Input
+                      id="edit-total-amount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={editPurchaseTotalAmount}
+                      onChange={(e) => setEditPurchaseTotalAmount(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-installments-count">Nº de Parcelas</Label>
+                    <Input
+                      id="edit-installments-count"
+                      type="number"
+                      min="1"
+                      max="48"
+                      value={editPurchaseInstallmentsCount}
+                      onChange={(e) => setEditPurchaseInstallmentsCount(e.target.value)}
+                      placeholder="1"
+                    />
+                  </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-first-due-date">Data 1ª Parcela</Label>
+                  <Input
+                    id="edit-first-due-date"
+                    type="date"
+                    value={editPurchaseFirstDueDate}
+                    onChange={(e) => setEditPurchaseFirstDueDate(e.target.value)}
+                  />
+                </div>
+
+                {/* Preview of calculated installment value */}
+                {parseFloat(editPurchaseTotalAmount) > 0 && parseInt(editPurchaseInstallmentsCount) > 0 && (
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-sm text-muted-foreground">Valor por parcela:</p>
+                    <p className="text-lg font-bold text-foreground">
+                      R$ {(parseFloat(editPurchaseTotalAmount) / parseInt(editPurchaseInstallmentsCount)).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {parseInt(editPurchaseInstallmentsCount)}x de R$ {(parseFloat(editPurchaseTotalAmount) / parseInt(editPurchaseInstallmentsCount)).toFixed(2)}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
