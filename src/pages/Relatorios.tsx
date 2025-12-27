@@ -22,6 +22,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   FileText,
   Printer,
   TrendingUp,
@@ -33,6 +39,8 @@ import {
   DollarSign,
   ShoppingCart,
   Clock,
+  Eye,
+  User,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,26 +48,35 @@ import { useSupabaseOrders } from "@/hooks/useSupabaseOrders";
 import { useSupabaseExpenses } from "@/hooks/useSupabaseExpenses";
 import { useSyncedCompanySettings } from "@/hooks/useSyncedCompanySettings";
 import { useSupabaseUsers } from "@/hooks/useSupabaseUsers";
+import { useSupabaseCustomers } from "@/hooks/useSupabaseCustomers";
 import { format } from "date-fns";
+import { OrderDetailsDialog } from "@/components/ordens/OrderDetailsDialog";
+import { ServiceOrder } from "@/lib/types";
 
 export default function Relatorios() {
-  const { orders } = useSupabaseOrders();
+  const { orders, updateOrder, updateOrderStatus, deleteOrder } = useSupabaseOrders();
   const { expenses } = useSupabaseExpenses();
-  const { customers, products, fixedExpenses } = useStore();
+  const { products, fixedExpenses } = useStore();
   const { settings: companySettings } = useSyncedCompanySettings();
   const { users } = useSupabaseUsers();
+  const { customers } = useSupabaseCustomers();
   const { authUser } = useAuth();
   const [activeTab, setActiveTab] = useState("vendas");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [vendedor, setVendedor] = useState("todos");
   const [searchTerm, setSearchTerm] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [customerOrdersDialogOpen, setCustomerOrdersDialogOpen] = useState(false);
+  const [selectedCustomerName, setSelectedCustomerName] = useState("");
 
   // Check if user is seller (restricted access)
   const isSeller = authUser?.role === 'seller';
   const currentUserName = authUser?.name;
 
-  const sellers = users.filter((u) => u.role === "seller" || u.role === "manager");
+  const sellers = users.filter((u) => u.role === "seller" || u.role === "manager" || u.role === "admin");
 
   // Helper to safely format dates
   const safeFormatDate = (dateStr: string | undefined) => {
@@ -214,6 +231,60 @@ export default function Relatorios() {
 
     return { pendingOrders, totalPending, byCustomer };
   }, [filteredOrders, customers, searchTerm]);
+
+  // Customer orders for the customer search feature
+  const customerOrders = useMemo(() => {
+    if (!customerSearch) return [];
+    const search = customerSearch.toLowerCase();
+    return orders.filter((order) => {
+      // Sellers can only see their own orders
+      if (isSeller && order.sellerName !== currentUserName) return false;
+      return order.customerName?.toLowerCase().includes(search);
+    });
+  }, [orders, customerSearch, isSeller, currentUserName]);
+
+  // Handle order click
+  const handleOrderClick = (order: ServiceOrder) => {
+    setSelectedOrder(order);
+    setOrderDialogOpen(true);
+  };
+
+  // Handle status change
+  const handleStatusChange = (status: 'pending' | 'production' | 'finished' | 'delivered') => {
+    if (selectedOrder) {
+      updateOrderStatus({ id: selectedOrder.id, status });
+      setSelectedOrder({ ...selectedOrder, status });
+    }
+  };
+
+  // Handle order delete
+  const handleDeleteOrder = (orderId: string) => {
+    deleteOrder(orderId);
+    setOrderDialogOpen(false);
+    setSelectedOrder(null);
+  };
+
+  // Handle print order
+  const handlePrintOrder = (type: 'production' | 'receipt' | 'order' | 'quote') => {
+    // Print functionality - could be extended
+    console.log('Print order:', type);
+  };
+
+  // Handle customer row click to show all orders
+  const handleCustomerClick = (customerName: string) => {
+    setSelectedCustomerName(customerName);
+    setCustomerSearch(customerName);
+    setCustomerOrdersDialogOpen(true);
+  };
+
+  // Get orders for selected customer in dialog
+  const selectedCustomerOrders = useMemo(() => {
+    if (!selectedCustomerName) return [];
+    return orders.filter((order) => {
+      if (isSeller && order.sellerName !== currentUserName) return false;
+      return order.customerName === selectedCustomerName;
+    });
+  }, [orders, selectedCustomerName, isSeller, currentUserName]);
 
   const handlePrint = (reportType: string) => {
     const printWindow = window.open("", "_blank");
@@ -510,13 +581,13 @@ export default function Relatorios() {
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-xs">Buscar</Label>
+              <Label className="text-xs">Buscar Cliente</Label>
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                <User className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Pesquisar..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Nome do cliente..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
                   className="pl-7 sm:pl-8 h-8 sm:h-9 text-xs sm:text-sm"
                 />
               </div>
@@ -540,6 +611,84 @@ export default function Relatorios() {
             </div>
           </div>
         </Card>
+
+        {/* Customer Orders Results */}
+        {customerSearch && customerOrders.length > 0 && (
+          <Card className="p-4 border-2 border-primary/30">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              Compras de "{customerSearch}" ({customerOrders.length} pedidos)
+            </h3>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Pago</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {customerOrders.map((order) => {
+                    const isPaid = order.paymentStatus === 'paid';
+                    const isPartial = order.paymentStatus === 'partial';
+                    const pendingAmount = order.total - (order.amountPaid || 0);
+                    return (
+                      <TableRow 
+                        key={order.id} 
+                        className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer"
+                        onClick={() => handleOrderClick(order)}
+                      >
+                        <TableCell>{safeFormatDate(order.createdAt)}</TableCell>
+                        <TableCell>#{order.id.slice(-4)}</TableCell>
+                        <TableCell>R$ {order.total.toFixed(2)}</TableCell>
+                        <TableCell>R$ {(order.amountPaid || 0).toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={isPaid ? "default" : isPartial ? "secondary" : "destructive"}
+                            className={isPaid ? "bg-success text-success-foreground" : ""}
+                          >
+                            {isPaid ? "Pago" : isPartial ? `Parcial (R$ ${pendingAmount.toFixed(2)})` : "Pendente"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOrderClick(order);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-3 pt-3 border-t flex justify-between text-sm">
+              <span className="text-muted-foreground">Total das compras:</span>
+              <span className="font-bold">R$ {customerOrders.reduce((acc, o) => acc + o.total, 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total pago:</span>
+              <span className="font-bold text-success">R$ {customerOrders.reduce((acc, o) => acc + (o.amountPaid || 0), 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total pendente:</span>
+              <span className="font-bold text-destructive">
+                R$ {customerOrders.reduce((acc, o) => acc + (o.total - (o.amountPaid || 0)), 0).toFixed(2)}
+              </span>
+            </div>
+          </Card>
+        )}
 
         {/* Report Content */}
         {activeTab === "vendas" && (
@@ -686,6 +835,72 @@ export default function Relatorios() {
               </Card>
             </div>
 
+            {/* Seller Sales Table - Shows when a seller is selected */}
+            {vendedor !== "todos" && (
+              <Card className="p-4 border-2 border-primary/30">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <User className="h-4 w-4 text-primary" />
+                  Vendas de {vendedor} ({filteredOrders.length} pedidos)
+                </h3>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Pedido</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Pago</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredOrders.map((order) => {
+                        const isPaid = order.paymentStatus === 'paid';
+                        const isPartial = order.paymentStatus === 'partial';
+                        const pendingAmount = order.total - (order.amountPaid || 0);
+                        return (
+                          <TableRow 
+                            key={order.id} 
+                            className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer"
+                            onClick={() => handleOrderClick(order)}
+                          >
+                            <TableCell>{safeFormatDate(order.createdAt)}</TableCell>
+                            <TableCell>#{order.id.slice(-4)}</TableCell>
+                            <TableCell>{order.customerName}</TableCell>
+                            <TableCell>R$ {order.total.toFixed(2)}</TableCell>
+                            <TableCell>R$ {(order.amountPaid || 0).toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={isPaid ? "default" : isPartial ? "secondary" : "destructive"}
+                                className={isPaid ? "bg-success text-success-foreground" : ""}
+                              >
+                                {isPaid ? "Pago" : isPartial ? `Parcial` : "Pendente"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOrderClick(order);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            )}
+
             <Card className="p-4">
               <h3 className="font-semibold mb-3">Detalhamento de Vendas</h3>
               <div className="overflow-x-auto">
@@ -697,26 +912,57 @@ export default function Relatorios() {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Vendedor</TableHead>
                       <TableHead>Pagamento</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-right">Pago</TableHead>
+                      <TableHead className="text-center">Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredOrders.map((order) => (
-                      <TableRow key={order.id} className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer">
-                        <TableCell>{safeFormatDate(order.createdAt)}</TableCell>
-                        <TableCell>#{order.id.slice(-4)}</TableCell>
-                        <TableCell>{order.customerName}</TableCell>
-                        <TableCell>{order.sellerName || "-"}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {paymentMethodLabel(order.paymentMethod)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">R$ {order.total.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">R$ {(order.amountPaid || 0).toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredOrders.map((order) => {
+                      const isPaid = order.paymentStatus === 'paid';
+                      const isPartial = order.paymentStatus === 'partial';
+                      return (
+                        <TableRow 
+                          key={order.id} 
+                          className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer"
+                          onClick={() => handleOrderClick(order)}
+                        >
+                          <TableCell>{safeFormatDate(order.createdAt)}</TableCell>
+                          <TableCell>#{order.id.slice(-4)}</TableCell>
+                          <TableCell>{order.customerName}</TableCell>
+                          <TableCell>{order.sellerName || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {paymentMethodLabel(order.paymentMethod)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={isPaid ? "default" : isPartial ? "secondary" : "destructive"}
+                              className={isPaid ? "bg-success text-success-foreground" : ""}
+                            >
+                              {isPaid ? "Pago" : isPartial ? "Parcial" : "Pendente"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">R$ {order.total.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">R$ {(order.amountPaid || 0).toFixed(2)}</TableCell>
+                          <TableCell className="text-center">
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-7 w-7 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOrderClick(order);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -923,16 +1169,34 @@ export default function Relatorios() {
                       <TableHead>Telefone</TableHead>
                       <TableHead className="text-right">Pedidos</TableHead>
                       <TableHead className="text-right">Valor Pendente</TableHead>
+                      <TableHead className="text-center">Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {receivablesData.byCustomer.map((customer) => (
-                      <TableRow key={customer.id} className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer">
+                      <TableRow 
+                        key={customer.id} 
+                        className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer"
+                        onClick={() => handleCustomerClick(customer.name)}
+                      >
                         <TableCell className="font-medium">{customer.name}</TableCell>
                         <TableCell>{customer.phone}</TableCell>
                         <TableCell className="text-right">{customer.orders}</TableCell>
                         <TableCell className="text-right text-destructive font-bold">
                           R$ {customer.pendente.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCustomerClick(customer.name);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -953,11 +1217,16 @@ export default function Relatorios() {
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-right">Pago</TableHead>
                       <TableHead className="text-right">Pendente</TableHead>
+                      <TableHead className="text-center">Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {receivablesData.pendingOrders.map((order) => (
-                      <TableRow key={order.id} className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer">
+                      <TableRow 
+                        key={order.id} 
+                        className="hover:bg-hover/10 border-b-2 border-transparent hover:border-hover/30 transition-all duration-200 cursor-pointer"
+                        onClick={() => handleOrderClick(order)}
+                      >
                         <TableCell>{safeFormatDate(order.createdAt)}</TableCell>
                         <TableCell>#{order.id.slice(-4)}</TableCell>
                         <TableCell>{order.customerName}</TableCell>
@@ -965,6 +1234,19 @@ export default function Relatorios() {
                         <TableCell className="text-right">R$ {(order.amountPaid || 0).toFixed(2)}</TableCell>
                         <TableCell className="text-right text-destructive font-bold">
                           R$ {(order.total - (order.amountPaid || 0)).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOrderClick(order);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -975,6 +1257,100 @@ export default function Relatorios() {
           </div>
         )}
       </div>
+
+      {/* Order Details Dialog */}
+      <OrderDetailsDialog
+        order={selectedOrder}
+        open={orderDialogOpen}
+        onOpenChange={setOrderDialogOpen}
+        onStatusChange={handleStatusChange}
+        onPrint={handlePrintOrder}
+        onDelete={handleDeleteOrder}
+      />
+
+      {/* Customer Orders Dialog */}
+      <Dialog open={customerOrdersDialogOpen} onOpenChange={setCustomerOrdersDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Pedidos de {selectedCustomerName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="p-3 bg-muted/50">
+                <p className="text-xs text-muted-foreground">Total Compras</p>
+                <p className="text-lg font-bold">
+                  R$ {selectedCustomerOrders.reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+                </p>
+              </Card>
+              <Card className="p-3 bg-success/10">
+                <p className="text-xs text-muted-foreground">Total Pago</p>
+                <p className="text-lg font-bold text-success">
+                  R$ {selectedCustomerOrders.reduce((acc, o) => acc + (o.amountPaid || 0), 0).toFixed(2)}
+                </p>
+              </Card>
+              <Card className="p-3 bg-destructive/10">
+                <p className="text-xs text-muted-foreground">Total Pendente</p>
+                <p className="text-lg font-bold text-destructive">
+                  R$ {selectedCustomerOrders.reduce((acc, o) => acc + (o.total - (o.amountPaid || 0)), 0).toFixed(2)}
+                </p>
+              </Card>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Pedido</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Pago</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedCustomerOrders.map((order) => {
+                  const isPaid = order.paymentStatus === 'paid';
+                  const isPartial = order.paymentStatus === 'partial';
+                  return (
+                    <TableRow 
+                      key={order.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setCustomerOrdersDialogOpen(false);
+                        handleOrderClick(order);
+                      }}
+                    >
+                      <TableCell>{safeFormatDate(order.createdAt)}</TableCell>
+                      <TableCell>#{order.id.slice(-4)}</TableCell>
+                      <TableCell>R$ {order.total.toFixed(2)}</TableCell>
+                      <TableCell>R$ {(order.amountPaid || 0).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={isPaid ? "default" : isPartial ? "secondary" : "destructive"}
+                          className={isPaid ? "bg-success text-success-foreground" : ""}
+                        >
+                          {isPaid ? "Pago" : isPartial ? "Parcial" : "Pendente"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-7 w-7 p-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
