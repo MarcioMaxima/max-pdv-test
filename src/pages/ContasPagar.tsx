@@ -142,6 +142,9 @@ export default function ContasPagar() {
   const [orderToPayCommission, setOrderToPayCommission] = useState<ServiceOrder | null>(null);
   const [isPayingOrderCommission, setIsPayingOrderCommission] = useState(false);
 
+  // Stats Cards Dialog state
+  const [statsDialogOpen, setStatsDialogOpen] = useState<'total' | 'fornecedores' | 'comissoes' | 'compras' | null>(null);
+
   const isLoading = suppliersLoading || expensesLoading || ordersLoading || fixedLoading || installmentsLoading;
 
   // Group pending installments by description (same purchase)
@@ -790,7 +793,10 @@ export default function ContasPagar() {
       <div className="space-y-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="border-l-4 border-l-warning">
+          <Card 
+            className="border-l-4 border-l-warning cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setStatsDialogOpen('total')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
@@ -806,7 +812,10 @@ export default function ContasPagar() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setStatsDialogOpen('fornecedores')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -823,7 +832,10 @@ export default function ContasPagar() {
           </Card>
 
           {usesCommission && (
-            <Card>
+            <Card 
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => setStatsDialogOpen('comissoes')}
+            >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
@@ -840,7 +852,10 @@ export default function ContasPagar() {
             </Card>
           )}
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setStatsDialogOpen('compras')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
@@ -2394,6 +2409,248 @@ export default function ContasPagar() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Stats Cards Dialog */}
+        <Dialog open={!!statsDialogOpen} onOpenChange={(open) => !open && setStatsDialogOpen(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {statsDialogOpen === 'total' && (
+                  <>
+                    <AlertCircle className="w-5 h-5 text-warning" />
+                    Total a Pagar
+                  </>
+                )}
+                {statsDialogOpen === 'fornecedores' && (
+                  <>
+                    <Truck className="w-5 h-5 text-primary" />
+                    Fornecedores
+                  </>
+                )}
+                {statsDialogOpen === 'comissoes' && (
+                  <>
+                    <Percent className="w-5 h-5 text-green-500" />
+                    Comissões
+                  </>
+                )}
+                {statsDialogOpen === 'compras' && (
+                  <>
+                    <ArrowDownCircle className="w-5 h-5 text-muted-foreground" />
+                    Compras
+                  </>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* Total a Pagar - Resumo */}
+            {statsDialogOpen === 'total' && (
+              <div className="space-y-4">
+                <div className="bg-warning/10 p-4 rounded-lg border border-warning/20">
+                  <p className="text-sm text-muted-foreground">Total Geral</p>
+                  <p className="text-3xl font-bold text-warning">R$ {(totalPayable + totalCommissionPayable).toFixed(2)}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Truck className="w-4 h-4 text-primary" />
+                      <p className="text-sm text-muted-foreground">Fornecedores</p>
+                    </div>
+                    <p className="text-xl font-bold text-foreground">R$ {totalPayable.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">{suppliersWithBalance.length} fornecedor(es)</p>
+                  </div>
+                  
+                  {usesCommission && (
+                    <div className="p-4 rounded-lg border bg-card">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Percent className="w-4 h-4 text-green-500" />
+                        <p className="text-sm text-muted-foreground">Comissões</p>
+                      </div>
+                      <p className="text-xl font-bold text-green-500">R$ {totalCommissionPayable.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{sellerCommissions.length} vendedor(es)</p>
+                    </div>
+                  )}
+                </div>
+
+                {suppliersWithBalance.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Detalhamento Fornecedores:</p>
+                    {suppliersWithBalance.map(s => (
+                      <div 
+                        key={s.id} 
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => { setStatsDialogOpen(null); handleViewDetails(s.id); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Truck className="h-4 w-4 text-primary" />
+                          </div>
+                          <span className="font-medium">{s.name}</span>
+                        </div>
+                        <span className="font-bold text-destructive">R$ {s.balance.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {usesCommission && sellerCommissions.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Detalhamento Comissões:</p>
+                    {sellerCommissions.map(s => (
+                      <div 
+                        key={s.sellerId} 
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => { setStatsDialogOpen(null); handleViewSellerDetails(s); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                            <User className="h-4 w-4 text-green-500" />
+                          </div>
+                          <div>
+                            <span className="font-medium">{s.sellerName}</span>
+                            <p className="text-xs text-muted-foreground">{s.ordersCount} pedido(s)</p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-green-500">R$ {s.commissionAmount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Fornecedores */}
+            {statsDialogOpen === 'fornecedores' && (
+              <div className="space-y-4">
+                <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
+                  <p className="text-sm text-muted-foreground">Total Fornecedores</p>
+                  <p className="text-3xl font-bold text-foreground">R$ {totalPayable.toFixed(2)}</p>
+                </div>
+                
+                {suppliersWithBalance.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Truck className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>Nenhum saldo pendente com fornecedores</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {suppliersWithBalance.map(s => (
+                      <div 
+                        key={s.id} 
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => { setStatsDialogOpen(null); handleViewDetails(s.id); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Truck className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <span className="font-medium">{s.name}</span>
+                            <p className="text-xs text-muted-foreground">{s.expenseCount} compra(s)</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-destructive">R$ {s.balance.toFixed(2)}</span>
+                          <p className="text-xs text-muted-foreground">Clique para detalhes</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Comissões */}
+            {statsDialogOpen === 'comissoes' && (
+              <div className="space-y-4">
+                <div className="bg-green-500/10 p-4 rounded-lg border border-green-500/20">
+                  <p className="text-sm text-muted-foreground">Total Comissões - {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}</p>
+                  <p className="text-3xl font-bold text-green-500">R$ {totalCommissionPayable.toFixed(2)}</p>
+                </div>
+                
+                {sellerCommissions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Percent className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>Nenhuma comissão pendente no período</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {sellerCommissions.map(s => (
+                      <div 
+                        key={s.sellerId} 
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => { setStatsDialogOpen(null); handleViewSellerDetails(s); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                            <User className="h-5 w-5 text-green-500" />
+                          </div>
+                          <div>
+                            <span className="font-medium">{s.sellerName}</span>
+                            <p className="text-xs text-muted-foreground">{s.ordersCount} pedido(s) • Total: R$ {s.totalSales.toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-green-500">R$ {s.commissionAmount.toFixed(2)}</span>
+                          <p className="text-xs text-muted-foreground">{commissionPercentage}%</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Compras */}
+            {statsDialogOpen === 'compras' && (
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-lg border">
+                  <p className="text-sm text-muted-foreground">Total de Compras</p>
+                  <p className="text-3xl font-bold text-foreground">{expenses.filter(e => e.supplierId).length}</p>
+                </div>
+                
+                {expenses.filter(e => e.supplierId).length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>Nenhuma compra registrada</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {expenses.filter(e => e.supplierId).slice(0, 20).map(exp => (
+                      <div 
+                        key={exp.id} 
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => { 
+                          setStatsDialogOpen(null); 
+                          const supplier = suppliers.find(s => s.id === exp.supplierId);
+                          if (supplier) handleViewDetails(supplier.id);
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                            <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <span className="font-medium">{exp.description}</span>
+                            <p className="text-xs text-muted-foreground">
+                              {exp.supplierName || 'Sem fornecedor'} • {format(new Date(exp.date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-foreground">R$ {exp.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {expenses.filter(e => e.supplierId).length > 20 && (
+                      <p className="text-center text-xs text-muted-foreground py-2">
+                        Mostrando 20 de {expenses.filter(e => e.supplierId).length} compras
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
