@@ -1122,6 +1122,37 @@ export default function Relatorios() {
           </table>
         `;
       }
+    } else if (reportType === "comissoes-detalhes") {
+      // Detailed commission orders
+      content = `
+        ${headerStyle}
+        ${actionBar}
+        ${header.replace("COMISSOES-DETALHES", "DETALHAMENTO DE VENDAS COM COMISSÃO")}
+        <div class="summary">
+          <div class="summary-item"><span>Taxa de Comissão:</span><span>${commissionData.percentage}%</span></div>
+          <div class="summary-item"><span>Total em Comissões:</span><span>R$ ${commissionData.totalCommission.toFixed(2)}</span></div>
+          <div class="summary-item"><span>Total de Vendas:</span><span>${commissionData.allOrders.length}</span></div>
+        </div>
+        <h3>Detalhamento de Vendas</h3>
+        <table>
+          <tr><th>Data</th><th>Pedido</th><th>Cliente</th><th>Vendedor</th><th>Valor Pago</th><th>Comissão</th></tr>
+          ${commissionData.allOrders.map((o) => `
+            <tr>
+              <td>${o.createdAt ? (isNaN(new Date(o.createdAt).getTime()) ? "-" : format(new Date(o.createdAt), "dd/MM/yyyy")) : "-"}</td>
+              <td>#${o.id.slice(-4)}</td>
+              <td>${o.customerName}</td>
+              <td>${o.sellerName || "-"}</td>
+              <td>R$ ${(o.amountPaid || 0).toFixed(2)}</td>
+              <td>R$ ${o.commissionValue.toFixed(2)}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td colspan="4">TOTAL</td>
+            <td>R$ ${commissionData.allOrders.reduce((acc, o) => acc + (o.amountPaid || 0), 0).toFixed(2)}</td>
+            <td>R$ ${commissionData.totalCommission.toFixed(2)}</td>
+          </tr>
+        </table>
+      `;
     }
 
     printWindow.document.write(`<!DOCTYPE html><html><head><title>Relatório</title></head><body>${content}</body></html>`);
@@ -2285,7 +2316,13 @@ export default function Relatorios() {
             {/* Detailed Commission Orders */}
             {commissionData.allOrders.length > 0 && (
               <Card className="p-4">
-                <h3 className="font-semibold mb-3">Detalhamento de Vendas com Comissão</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold">Detalhamento de Vendas com Comissão</h3>
+                  <Button onClick={() => handlePrint("comissoes-detalhes")} variant="outline" size="sm" className="gap-1">
+                    <Printer className="h-3.5 w-3.5" />
+                    Imprimir
+                  </Button>
+                </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
